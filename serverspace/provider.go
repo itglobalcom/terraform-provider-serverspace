@@ -1,30 +1,34 @@
-package serversapce
+package serverspace
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"gitlab.itglobal.com/b2c/terraform-provider-serverspace/serverspace/ssclient"
 )
 
 // Provider -
 func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
-			"host": &schema.Schema{
+			"host": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: schema.EnvDefaultFunc("SERVERSPACE_HOST", nil),
 			},
-			"token": &schema.Schema{
+			"key": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				DefaultFunc: schema.ConfigureContextFunc("SERVERSPACE_TOKEN", nil),
+				DefaultFunc: schema.EnvDefaultFunc("SERVERSPACE_KEY", nil),
 			},
 		},
-		// ResourcesMap: map[string]*schema.Resource{
-		// 	"hashicups_order": resourceOrder(),
-		// },
+
+		ResourcesMap: map[string]*schema.Resource{
+			"serverspace_server": resourceServer(),
+		},
+
 		// DataSourcesMap: map[string]*schema.Resource{
 		// 	"hashicups_coffees":     dataSourceCoffees(),
 		// 	"hashicups_ingredients": dataSourceIngredients(),
@@ -35,18 +39,18 @@ func Provider() *schema.Provider {
 }
 
 func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
+	key := d.Get("key").(string)
 	host := d.Get("host").(string)
-	token := d.Get("token").(string)
 
-	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 
-	c, err := serverspace.NewClient(host, &host, &token)
+	c, err := ssclient.NewClient(key, &host)
+	fmt.Println("test")
 	if err != nil {
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,
-			Summary:  "Unable to create serversapce client",
-			Detail:   "Unable to authenticate user for authenticated serversapce client",
+			Summary:  "Unable to create serverspace client",
+			Detail:   err.Error(), // "Unable to authenticate user for authenticated serverspace client",
 		})
 
 		return nil, diags
