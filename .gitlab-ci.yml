@@ -1,0 +1,3 @@
+include:
+  - project: b2c/ci
+    file: terraform-provider-serverspace/pipeline.yml
