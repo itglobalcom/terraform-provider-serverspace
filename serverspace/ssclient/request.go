@@ -38,16 +38,6 @@ func makeRequest(
 	switch method {
 	case methodGet:
 		resp, err = request.Get(url)
-		// if strings.Contains(url, "servers") {
-		// 	tmpReq := client.R().
-		// 		SetResult(map[string]interface{}{}). //SetError(map[string]interface{}{})
-		// 		SetError(&ErrorBodyResponse{})
-		// 	if payload != nil {
-		// 		request = request.SetBody(payload)
-		// 	}
-		// 	tmpResp, _ := tmpReq.Get(url)
-		// 	log.Default().Println("Result %ы 00000000000: ::", tmpReq.URL, tmpResp.Result())
-		// }
 	case methodPost:
 		resp, err = request.Post(url)
 	case methodPut:
@@ -63,9 +53,6 @@ func makeRequest(
 	default:
 		return nil, errors.New("Wrong method type")
 	}
-
-	// marshaledBody, err := json.MarshalIndent(resp.Request.Body, "", "\t")
-	// log.Default().Printf("%s, %s, %w", marshaledBody, err)
 
 	if err != nil {
 		return nil, NewRequestError(resp, err)

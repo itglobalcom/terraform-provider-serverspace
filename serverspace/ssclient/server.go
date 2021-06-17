@@ -2,7 +2,6 @@ package ssclient
 
 import (
 	"fmt"
-	"log"
 )
 
 const serverBaseURL = "servers"
@@ -25,7 +24,7 @@ type (
 		CPU        int             `json:"cpu,omitempty"`
 		RAM        int             `json:"ram_mb,omitempty"`
 		Volumes    []*VolumeEntity `json:"volumes,omitempty"`
-		NICS       []*NICResponse  `json:"nics,omitempty"`
+		NICS       []*NICEntity    `json:"nics,omitempty"`
 	}
 
 	serverResponseWrap struct {
@@ -39,7 +38,6 @@ func (c *SSClient) GetServer(serverID string) (*ServerResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Default().Printf("aaaaaaaaaaaaaaaaaaaa %v", resp)
 	return resp.(*serverResponseWrap).Server, nil
 }
 
@@ -93,7 +91,6 @@ func (c *SSClient) UpdateServer(serverID string, cpu int, ram int) (*TaskIDWrap,
 		"cpu":    cpu,
 		"ram_mb": ram,
 	}
-	log.Default().Printf("%v\n%d\n%d", payload, cpu, ram)
 	url := fmt.Sprintf("%s/%s", serverBaseURL, serverID)
 	resp, err := makeRequest(c.client, url, methodPut, payload, &TaskIDWrap{})
 	if err != nil {
@@ -107,7 +104,6 @@ func (c *SSClient) UpdateServerAndWait(serverID string, cpu int, ram int) (*Serv
 	if err != nil {
 		return nil, err
 	}
-	log.Default().Printf("Wait task completion: %s", taskWrap.ID)
 	return c.waitServer(taskWrap.ID)
 }
 

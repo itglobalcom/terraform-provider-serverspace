@@ -62,7 +62,7 @@ func (c *SSClient) waitTaskCompletion(taskID string) (*TaskResponse, error) {
 		if task.IsCompleted == "Completed" {
 			return task, nil
 		} else {
-			log.Default().Printf("Task isn't completed: %#v", task)
+			log.Default().Printf("[INFO] Task isn't completed: %#v", task)
 		}
 		if time.Now().Sub(begin) > duration {
 			return nil, fmt.Errorf("Task wasn't complete for %f secs", duration.Seconds())

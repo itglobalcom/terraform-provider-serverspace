@@ -58,7 +58,6 @@ var serverSchema = map[string]*schema.Schema{
 				"name": {
 					Type:     schema.TypeString,
 					Required: true,
-					ForceNew: true,
 				},
 				"size": {
 					Type:         schema.TypeInt,
@@ -71,6 +70,7 @@ var serverSchema = map[string]*schema.Schema{
 	"nic": {
 		Type:     schema.TypeList,
 		Required: true,
+		MinItems: 1,
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
 				"id": {
@@ -82,11 +82,17 @@ var serverSchema = map[string]*schema.Schema{
 					Type:     schema.TypeString,
 					Optional: true,
 					Computed: true,
+					// ConflictsWith: []string{"bandwidth"},
+				},
+				"network_type": {
+					Type:     schema.TypeString,
+					Computed: true,
 				},
 				"bandwidth": {
 					Type:         schema.TypeInt,
 					Required:     true,
 					ValidateFunc: validation.IntBetween(0, 100),
+					// ConflictsWith: []string{"network"},
 				},
 			},
 		},

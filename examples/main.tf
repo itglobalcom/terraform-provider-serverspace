@@ -35,36 +35,37 @@ resource "serverspace_server" "vm1" {
   root_volume_size = 30720 # 25600
 
   volume {
-    name = "bar"
+    name = "bar1"
     size = 30720
   }
 
   nic {
-    # network        = data.serverspace_isolated_network.my_net.id
-    bandwidth = 100
+    # network = data.serverspace_isolated_network.my_net.id
+    bandwidth = 50
   }
+
 
   ssh_keys = [
 
   ]
 
-
-  # connection {
-  #   host        = self.public_ip_addresses[0] # Read-only attribute computed from connected networks
-  #   user        = "root"
-  #   type        = "ssh"
-  #   private_key = file(var.pvt_key)
-  #   timeout     = "2m"
-  # }
-  # provisioner "remote-exec" {
-  #   inline = [
-  #     "export PATH=$PATH:/usr/bin",
-  #     # install nginx
-  #     "sudo apt-get update",
-  #     "sudo apt-get -y install nginx"
-  #   ]
-  # }
 }
+
+# connection {
+#   host        = self.public_ip_addresses[0] # Read-only attribute computed from connected networks
+#   user        = "root"
+#   type        = "ssh"
+#   private_key = file(var.pvt_key)
+#   timeout     = "2m"
+# }
+# provisioner "remote-exec" {
+#   inline = [
+#     "export PATH=$PATH:/usr/bin",
+#     # install nginx
+#     "sudo apt-get update",
+#     "sudo apt-get -y install nginx"
+#   ]
+# }
 
 output "vm1" {
   value = serverspace_server.vm1
