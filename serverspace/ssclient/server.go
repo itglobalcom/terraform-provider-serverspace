@@ -13,8 +13,9 @@ type (
 		SizeMB int    `json:"size_mb,omitempty"`
 	}
 
-	Network struct {
-		Bandwidth int `json:"bandwidth_mbps,omitempty"`
+	NetworkData struct {
+		NetwrokID string `json:"netwrok_id,omitempty"`
+		Bandwidth int    `json:"bandwidth_mbps,omitempty"`
 	}
 
 	ServerResponse struct {
@@ -49,7 +50,7 @@ func (c *SSClient) CreateServer(
 	cpu int,
 	ram int,
 	volumes []*VolumeData,
-	networks []*Network,
+	networks []*NetworkData,
 	sshKeyIds []int,
 ) (*TaskIDWrap, error) {
 	payload := map[string]interface{}{
@@ -77,7 +78,7 @@ func (c *SSClient) CreateServerAndWait(
 	cpu int,
 	ram int,
 	volumes []*VolumeData,
-	networks []*Network,
+	networks []*NetworkData,
 	sshKeyIds []int,
 ) (*ServerResponse, error) {
 	taskWrap, err := c.CreateServer(name, locationID, imageID, cpu, ram, volumes, networks, sshKeyIds)

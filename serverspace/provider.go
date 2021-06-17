@@ -2,7 +2,6 @@ package serverspace
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -24,16 +23,10 @@ func Provider() *schema.Provider {
 				DefaultFunc: schema.EnvDefaultFunc("SERVERSPACE_KEY", nil),
 			},
 		},
-
 		ResourcesMap: map[string]*schema.Resource{
-			"serverspace_server": resourceServer(),
+			"serverspace_server":           resourceServer(),
+			"serverspace_isolated_network": resourcNetwork(),
 		},
-
-		// DataSourcesMap: map[string]*schema.Resource{
-		// 	"hashicups_coffees":     dataSourceCoffees(),
-		// 	"hashicups_ingredients": dataSourceIngredients(),
-		// 	"hashicups_order":       dataSourceOrder(),
-		// },
 		ConfigureContextFunc: providerConfigure,
 	}
 }
@@ -45,7 +38,6 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 	var diags diag.Diagnostics
 
 	c, err := ssclient.NewClient(key, &host)
-	fmt.Println("test")
 	if err != nil {
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,

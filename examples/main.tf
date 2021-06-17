@@ -30,23 +30,19 @@ resource "serverspace_server" "vm1" {
   image    = var.ubuntu
   location = var.am_loc
   cpu      = 1
-  ram      = 1024
+  ram      = 2048
 
-  volume { # The name of the first volume block is ignored (like in CLI)
-    name = "boot"
-    size = 25600
-  }
+  root_volume_size = 30720 # 25600
 
   volume {
     name = "bar"
-    size = 10240
+    size = 30720
   }
 
-  nics = [50, 50]
-  # nic {
-  #   network = data.serverspace_isolated_network.my_net.id
-  #   type    = "isolated"
-  # }
+  nic {
+    # network        = data.serverspace_isolated_network.my_net.id
+    bandwidth = 100
+  }
 
   ssh_keys = [
 
@@ -68,4 +64,8 @@ resource "serverspace_server" "vm1" {
   #     "sudo apt-get -y install nginx"
   #   ]
   # }
+}
+
+output "vm1" {
+  value = serverspace_server.vm1
 }

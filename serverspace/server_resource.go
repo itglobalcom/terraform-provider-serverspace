@@ -2,7 +2,6 @@ package serverspace
 
 import (
 	"context"
-	"log"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -21,8 +20,6 @@ func resourceServer() *schema.Resource {
 
 func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	client := m.(*ssclient.SSClient)
-
-	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 
 	name := d.Get("name").(string)
@@ -31,22 +28,29 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 	cpu := d.Get("cpu").(int)
 	ram := d.Get("ram").(int)
 
-	netBandwidths := d.Get("nics").([]interface{})
-	nics := make([]*ssclient.Network, len(netBandwidths), len(netBandwidths))
-	for i, v := range netBandwidths {
-		nics[i] = &ssclient.Network{
-			Bandwidth: v.(int),
+	rawNics := d.Get("nic").([]interface{})
+	nics := make([]*ssclient.NetworkData, len(rawNics))
+
+	for i, rawNic := range rawNics {
+		nic := rawNic.(map[string]interface{})
+
+		network, _ := nic["network"].(string) // we get empty name if it isn't set
+		nics[i] = &ssclient.NetworkData{
+			NetwrokID: network,
+			Bandwidth: nic["bandwidth"].(int),
 		}
 	}
 
 	rawSSHKeyIds := d.Get("ssh_keys").([]interface{})
-	sshKeyIds := make([]int, len(rawSSHKeyIds), len(rawSSHKeyIds))
+	sshKeyIds := make([]int, len(rawSSHKeyIds))
 	for i, v := range rawSSHKeyIds {
 		sshKeyIds[i] = v.(int)
 	}
 
+	// ----- Set Volumes -----
 	rawVolumes := d.Get("volume").([]interface{})
-	volumes := make([]*ssclient.VolumeData, len(rawVolumes), len(rawVolumes))
+	volumes := make([]*ssclient.VolumeData, len(rawVolumes))
+
 	for i, v := range rawVolumes {
 		rawVolume := v.(map[string]interface{})
 		volume := &ssclient.VolumeData{
@@ -56,15 +60,22 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 		volumes[i] = volume
 	}
 
+	// ----- Set Root Volume -----
+	rootVolumeSize := d.Get("root_volume_size").(int)
+	rootVolume := &ssclient.VolumeData{
+		Name:   "boot",
+		SizeMB: rootVolumeSize,
+	}
+	volumes = append(volumes, rootVolume)
+
+	// ----- Perform server creating -----
 	server, err := client.CreateServerAndWait(name, location, image, cpu, ram, volumes, nics, sshKeyIds)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
 	d.SetId(server.ID)
-
 	resourceServerRead(ctx, d, m)
-
 	return diags
 }
 
@@ -83,27 +94,18 @@ func resourceServerUpdate(ctx context.Context, d *schema.ResourceData, m interfa
 	}
 
 	if d.HasChange("volume") {
-		oldVolumeValueIfaces, newVolumeValueIfaces := d.GetChange("volume")
-
-		oldVolumeValues := make(map[int]map[string]interface{}, len(oldVolumeValueIfaces.([]interface{})))
-		for _, volume := range oldVolumeValueIfaces.([]map[string]interface{}) {
-			oldVolumeValues[volume["id"].(int)] = volume
+		if err := updateVolumes(d, client, serverID); err != nil {
+			return diag.FromErr(err)
 		}
+	}
 
-		newVolumeValues := make(map[int]map[string]interface{}, len(newVolumeValueIfaces.([]interface{})))
-		for _, volume := range newVolumeValueIfaces.([]map[string]interface{}) {
-			volumeID := volume["id"].(int)
-			newVolumeValues[volumeID] = volume
+	if d.HasChange("root_volume_size") {
+		rootVolumeID := d.Get("root_volume_id").(int)
+		newRootSize := d.Get("root_volume_size").(int)
+		rootName := "boot"
+		if _, err := client.UpdateVolume(serverID, rootVolumeID, rootName, newRootSize); err != nil {
+			return diag.FromErr(err)
 		}
-
-		for oldVolumeID, oldVolume := range oldVolumeValues {
-			if newVolume, exist := newVolumeValues[oldVolumeID]; exist {
-				if newVolume["size"].(int) != oldVolume["size"].(int) {
-					_ = newVolume["size"].(int)
-				}
-			}
-		}
-
 	}
 
 	return resourceServerRead(ctx, d, m)
@@ -138,8 +140,16 @@ func resourceServerRead(ctx context.Context, d *schema.ResourceData, m interface
 		return diag.FromErr(err)
 	}
 
-	volumes := make([]interface{}, len(server.Volumes), len(server.Volumes))
-	for i, volume := range server.Volumes {
+	volumesWithoutRoot, rootVolume := splitRootFromVolumes(server.Volumes)
+	if err := d.Set("root_volume_size", rootVolume.Size); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("root_volume_id", rootVolume.ID); err != nil {
+		return diag.FromErr(err)
+	}
+
+	volumes := make([]interface{}, len(volumesWithoutRoot))
+	for i, volume := range volumesWithoutRoot {
 		volumeMap := map[string]interface{}{
 			"id":   volume.ID,
 			"name": volume.Name,
@@ -151,8 +161,16 @@ func resourceServerRead(ctx context.Context, d *schema.ResourceData, m interface
 		return diag.FromErr(err)
 	}
 
+	nics := make([]map[string]interface{}, len(server.NICS))
+	for i, nic := range server.NICS {
+		nics[i] = map[string]interface{}{
+			"id":        nic.ID,
+			"network":   nic.NetworkID,
+			"bandwidth": nic.BandwidthMBPS,
+		}
+	}
+
 	d.SetId(serverID)
-	log.Default().Printf("999999999999 %+v", d)
 
 	return diags
 }
@@ -170,9 +188,73 @@ func resourceServerDelete(ctx context.Context, d *schema.ResourceData, m interfa
 		return diag.FromErr(err)
 	}
 
-	// d.SetId("") is automatically called assuming delete returns no errors, but
-	// it is added here for explicitness.
 	d.SetId("")
 
 	return diags
+}
+
+func updateVolumes(d *schema.ResourceData, client *ssclient.SSClient, serverID string) error {
+	oldVolumeValueIfaces, newVolumeValueIfaces := d.GetChange("volume")
+
+	oldVolumeValues := make(map[int]map[string]interface{}, len(oldVolumeValueIfaces.([]interface{})))
+	for _, volume := range oldVolumeValueIfaces.([]interface{}) {
+		mappedVolume := volume.(map[string]interface{})
+		volumeID := mappedVolume["id"].(int)
+		oldVolumeValues[volumeID] = mappedVolume
+	}
+
+	newVolumeValues := make(map[int]map[string]interface{}, len(newVolumeValueIfaces.([]interface{})))
+	for _, volume := range newVolumeValueIfaces.([]interface{}) {
+		mappedVolume := volume.(map[string]interface{})
+		volumeID := mappedVolume["id"].(int)
+		newVolumeValues[volumeID] = mappedVolume
+	}
+
+	// ----- VOLUMES -----
+	// check chenged volumes
+	for volumeID, oldVolume := range oldVolumeValues {
+		if newVolume, exist := newVolumeValues[volumeID]; exist {
+			newSize := newVolume["size"].(int)
+			newName := newVolume["name"].(string)
+			oldSize := oldVolume["size"].(int)
+			oldName := oldVolume["name"].(string)
+			if newSize != oldSize || newName != oldName {
+				if _, err := client.UpdateVolume(serverID, volumeID, newName, newSize); err != nil {
+					return err
+				}
+			}
+		} else {
+			// if volume was removed
+			if err := client.DeleteVolume(serverID, volumeID); err != nil {
+				return err
+			}
+		}
+	}
+
+	// try to find new volumes
+	for volumeID, newVolume := range newVolumeValues {
+		if _, exist := oldVolumeValues[volumeID]; !exist {
+			volumeName := newVolume["name"].(string)
+			volumeSize := newVolume["size"].(int)
+			if _, err := client.CreateVolumeAndWait(serverID, volumeName, volumeSize); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func splitRootFromVolumes(volumes []*ssclient.VolumeEntity) ([]*ssclient.VolumeEntity, *ssclient.VolumeEntity) {
+	volumesLen := len(volumes)
+	volumesWithoutRoot := make([]*ssclient.VolumeEntity, 0, volumesLen)
+	var rootVolume *ssclient.VolumeEntity
+	for _, volume := range volumes {
+		if volume.Name == "boot" {
+			rootVolume = volume
+			continue
+		}
+		volumesWithoutRoot = append(volumesWithoutRoot, volume)
+	}
+
+	return volumesWithoutRoot, rootVolume
 }

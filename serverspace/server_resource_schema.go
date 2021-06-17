@@ -36,34 +36,59 @@ var serverSchema = map[string]*schema.Schema{
 		Required:     true,
 		ValidateFunc: validation.IntAtLeast(512),
 	},
+	"root_volume_size": {
+		Type:         schema.TypeInt,
+		Required:     true,
+		ValidateFunc: validation.IntAtLeast(10240),
+	},
+	"root_volume_id": {
+		Type:     schema.TypeInt,
+		Computed: true,
+	},
 	"volume": {
 		Type:     schema.TypeList,
 		Required: true,
-		ForceNew: true,
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
 				"id": {
-					Type:     schema.TypeString,
+					Type:     schema.TypeInt,
 					Optional: true,
 					Computed: true,
 				},
 				"name": {
 					Type:     schema.TypeString,
 					Required: true,
+					ForceNew: true,
 				},
 				"size": {
-					Type:     schema.TypeInt,
-					Required: true,
+					Type:         schema.TypeInt,
+					Required:     true,
+					ValidateFunc: validation.IntAtLeast(10240),
 				},
 			},
 		},
 	},
-	"nics": {
+	"nic": {
 		Type:     schema.TypeList,
 		Required: true,
-		ForceNew: true,
-		Elem: &schema.Schema{
-			Type: schema.TypeInt,
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"id": {
+					Type:     schema.TypeInt,
+					Optional: true,
+					Computed: true,
+				},
+				"network": {
+					Type:     schema.TypeString,
+					Optional: true,
+					Computed: true,
+				},
+				"bandwidth": {
+					Type:         schema.TypeInt,
+					Required:     true,
+					ValidateFunc: validation.IntBetween(0, 100),
+				},
+			},
 		},
 	},
 	"ssh_keys": {
