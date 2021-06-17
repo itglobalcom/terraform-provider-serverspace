@@ -3,6 +3,7 @@ package serverspace
 import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"gitlab.itglobal.com/b2c/terraform-provider-serverspace/serverspace/ssclient"
 )
 
 var serverSchema = map[string]*schema.Schema{
@@ -36,12 +37,12 @@ var serverSchema = map[string]*schema.Schema{
 		Required:     true,
 		ValidateFunc: validation.IntAtLeast(512),
 	},
-	"root_volume_size": {
+	"boot_volume_size": {
 		Type:         schema.TypeInt,
 		Required:     true,
 		ValidateFunc: validation.IntAtLeast(10240),
 	},
-	"root_volume_id": {
+	"boot_volume_id": {
 		Type:     schema.TypeInt,
 		Computed: true,
 	},
@@ -75,24 +76,28 @@ var serverSchema = map[string]*schema.Schema{
 			Schema: map[string]*schema.Schema{
 				"id": {
 					Type:     schema.TypeInt,
-					Optional: true,
 					Computed: true,
 				},
 				"network": {
-					Type:     schema.TypeString,
-					Optional: true,
-					Computed: true,
-					// ConflictsWith: []string{"bandwidth"},
+					Type:         schema.TypeString,
+					Optional:     true,
+					Computed:     true,
+					ComputedWhen: []string{"bandwidth"},
 				},
 				"network_type": {
 					Type:     schema.TypeString,
-					Computed: true,
+					Required: true,
+					ValidateFunc: validation.StringInSlice([]string{
+						string(ssclient.PublicSharedNetwork),
+						string(ssclient.IsolatedNetwork),
+					}, false),
 				},
 				"bandwidth": {
 					Type:         schema.TypeInt,
-					Required:     true,
+					Optional:     true,
+					Computed:     true,
+					ComputedWhen: []string{"network"},
 					ValidateFunc: validation.IntBetween(0, 100),
-					// ConflictsWith: []string{"network"},
 				},
 			},
 		},

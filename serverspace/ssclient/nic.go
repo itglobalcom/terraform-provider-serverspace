@@ -2,31 +2,51 @@ package ssclient
 
 import "fmt"
 
+type NetworkType string
+
+const (
+	PublicSharedNetwork NetworkType = "PublicShared"
+	IsolatedNetwork     NetworkType = "Isolated"
+)
+
 type (
 	NICEntity struct {
-		ID            int    `json:"id,omitempty"`
-		ServerID      string `json:"server_id,omitempty"`
-		NetworkID     string `json:"network_id,omitempty"`
-		MAC           string `json:"mac,omitempty"`
-		IPAddress     string `json:"ip_address,omitempty"`
-		Mask          int    `json:"mask,omitempty"`
-		Gateway       string `json:"gateway,omitempty"`
-		BandwidthMBPS int    `json:"bandwidth_mbps,omitempty"`
-		NetworkType   string `json:"network_type,omitempty"`
+		ID            int         `json:"id,omitempty"`
+		ServerID      string      `json:"server_id,omitempty"`
+		NetworkID     string      `json:"network_id,omitempty"`
+		MAC           string      `json:"mac,omitempty"`
+		IPAddress     string      `json:"ip_address,omitempty"`
+		Mask          int         `json:"mask,omitempty"`
+		Gateway       string      `json:"gateway,omitempty"`
+		BandwidthMBPS int         `json:"bandwidth_mbps,omitempty"`
+		NetworkType   NetworkType `json:"network_type,omitempty"`
 	}
 
 	nicResponseWrap struct {
 		NIC *NICEntity `json:"nic,omitempty"`
 	}
+
+	nicListResponseWrap struct {
+		NICS []*NICEntity `json:"nics,omitempty"`
+	}
 )
 
 func (c *SSClient) GetNIC(serverID string, nicID int) (*NICEntity, error) {
 	url := getNICURL(serverID, nicID)
-	resp, err := makeRequest(c.client, url, methodGet, nil, &serverResponseWrap{})
+	resp, err := makeRequest(c.client, url, methodGet, nil, &nicResponseWrap{})
 	if err != nil {
 		return nil, err
 	}
 	return resp.(*nicResponseWrap).NIC, nil
+}
+
+func (c *SSClient) GetNICList(serverID string) ([]*NICEntity, error) {
+	url := getNICSBaseURL(serverID)
+	resp, err := makeRequest(c.client, url, methodGet, nil, &nicListResponseWrap{})
+	if err != nil {
+		return nil, err
+	}
+	return resp.(*nicListResponseWrap).NICS, nil
 }
 
 func (c *SSClient) CreateNIC(serverID, networkID string, bandwidth int) (*TaskIDWrap, error) {
@@ -76,8 +96,13 @@ func (c *SSClient) UpdatePublicNICAndWait(serverID string, nicID, bandwidth int)
 
 func (c *SSClient) DeleteNIC(serverID string, nicID int) error {
 	url := getNICURL(serverID, nicID)
-	_, err := makeRequest(c.client, url, methodDelete, nil, &TaskIDWrap{})
-	return err
+	if _, err := makeRequest(c.client, url, methodDelete, nil, &TaskIDWrap{}); err != nil {
+		return err
+	}
+	if _, err := c.waitServerActive(serverID); err != nil {
+		return err
+	}
+	return nil
 }
 
 func getNICURL(serverID string, nicID int) string {

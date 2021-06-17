@@ -8,31 +8,26 @@ terraform {
 }
 
 
-variable "ubuntu" {
-  description = "Default LTS"
-  default     = "Ubuntu-18.04-X64"
-}
-
-variable "am_loc" {
-  description = "am location"
-  default     = "am2"
-}
-
-
-# resource "serverspace_isolated_network" "my_net" {
-#   location    = var.am_loc
-#   name        = "my_net"
-#   description = "Internal network"
+# resource "serverspace_ssh" "my_ssh" {
+#   ssh = var.my_ssh_key
 # }
+
+resource "serverspace_isolated_network" "my_net" {
+  location       = var.am_location
+  name           = "my_net"
+  description    = "Internal network"
+  network_prefix = "192.168.0.0"
+  mask           = 24
+}
 
 resource "serverspace_server" "vm1" {
   name     = "vm1"
   image    = var.ubuntu
-  location = var.am_loc
+  location = var.am_location
   cpu      = 1
   ram      = 2048
 
-  root_volume_size = 30720 # 25600
+  boot_volume_size = 30720 # 25600
 
   volume {
     name = "bar1"
@@ -40,16 +35,26 @@ resource "serverspace_server" "vm1" {
   }
 
   nic {
-    # network = data.serverspace_isolated_network.my_net.id
+    # network = serverspace_isolated_network.my_net.id
+    network_type = "PublicShared"
     bandwidth = 50
   }
 
+  #  nic {
+  #   # network = serverspace_isolated_network.my_net.id
+  #   network_type = "PublicShared"
+  #   bandwidth = 50
+  # }
+
 
   ssh_keys = [
-
+  #   serverspace_ssh.my_ssh.id
   ]
-
 }
+
+# output "vm1" {
+#   value = serverspace_server.vm1
+# }
 
 # connection {
 #   host        = self.public_ip_addresses[0] # Read-only attribute computed from connected networks
@@ -67,6 +72,8 @@ resource "serverspace_server" "vm1" {
 #   ]
 # }
 
-output "vm1" {
-  value = serverspace_server.vm1
+
+
+output "my_net" {
+  value = serverspace_isolated_network.my_net
 }

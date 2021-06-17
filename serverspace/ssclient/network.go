@@ -13,7 +13,7 @@ type (
 		LocationID    string   `json:"location_id,omitempty"`
 		Description   string   `json:"description,omitempty"`
 		NetworkPrefix string   `json:"network_prefix,omitempty"`
-		Mask          string   `json:"mask,omitempty"`
+		Mask          int      `json:"mask,omitempty"`
 		ServerIDS     []string `json:"server_ids,omitempty"`
 		State         string   `json:"state,omitempty"`
 		Created       string   `json:"created,omitempty"`
@@ -25,7 +25,7 @@ type (
 )
 
 func (c *SSClient) GetNetwork(networkID string) (*NetworkResponse, error) {
-	url := fmt.Sprintf("%s/%s", networkBaseURL, networkID)
+	url := getNetworkURL(networkID)
 	resp, err := makeRequest(c.client, url, methodGet, nil, &networkResponseWrap{})
 	if err != nil {
 		return nil, err
@@ -47,8 +47,7 @@ func (c *SSClient) CreateNetwork(
 		"network_prefix": networkPrefix,
 		"mask":           mask,
 	}
-
-	resp, err := makeRequest(c.client, serverBaseURL, methodPost, payload, &TaskIDWrap{})
+	resp, err := makeRequest(c.client, networkBaseURL, methodPost, payload, &TaskIDWrap{})
 	if err != nil {
 		return nil, err
 	}
@@ -61,12 +60,12 @@ func (c *SSClient) CreateNetworkAndWait(
 	description string,
 	networkPrefix string,
 	mask int,
-) (*ServerResponse, error) {
+) (*NetworkResponse, error) {
 	taskWrap, err := c.CreateNetwork(name, locationID, description, networkPrefix, mask)
 	if err != nil {
 		return nil, err
 	}
-	return c.waitServer(taskWrap.ID)
+	return c.waitNetwork(taskWrap.ID)
 }
 
 func (c *SSClient) UpdateNetwork(networkID, name, description string) (*TaskIDWrap, error) {

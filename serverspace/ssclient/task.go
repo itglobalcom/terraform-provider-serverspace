@@ -62,7 +62,7 @@ func (c *SSClient) waitTaskCompletion(taskID string) (*TaskResponse, error) {
 		if task.IsCompleted == "Completed" {
 			return task, nil
 		} else {
-			log.Default().Printf("[INFO] Task isn't completed: %#v", task)
+			log.Default().Printf("[TRACE] Task isn't completed: %#v", task)
 		}
 		if time.Now().Sub(begin) > duration {
 			return nil, fmt.Errorf("Task wasn't complete for %f secs", duration.Seconds())
@@ -70,4 +70,33 @@ func (c *SSClient) waitTaskCompletion(taskID string) (*TaskResponse, error) {
 	}
 
 	return task, err
+}
+
+func (c *SSClient) waitServerActive(serverID string) (*ServerResponse, error) {
+	const duration = defaultTaskCompletionDuration
+	begin := time.Now()
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	var (
+		server *ServerResponse
+		err    error
+	)
+
+	for range ticker.C {
+		server, err = c.GetServer(serverID)
+		if err != nil {
+			return nil, err
+		}
+		if server.State == "Active" {
+			return server, nil
+		} else {
+			log.Default().Printf("[TRACE] Server isn't active: %#v", server)
+		}
+		if time.Now().Sub(begin) > duration {
+			return nil, fmt.Errorf("Server wasn't active for %f secs", duration.Seconds())
+		}
+	}
+
+	return server, err
 }

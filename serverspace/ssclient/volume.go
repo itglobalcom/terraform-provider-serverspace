@@ -86,8 +86,13 @@ func (c *SSClient) UpdateVolumeAndWait(
 
 func (c *SSClient) DeleteVolume(serverID string, volumeID int) error {
 	url := getVolumeURL(serverID, volumeID)
-	_, err := makeRequest(c.client, url, methodDelete, nil, &TaskIDWrap{})
-	return err
+	if _, err := makeRequest(c.client, url, methodDelete, nil, &TaskIDWrap{}); err != nil {
+		return err
+	}
+	if _, err := c.waitServerActive(serverID); err != nil {
+		return err
+	}
+	return nil
 }
 
 func getVolumeURL(serverID string, volumeID int) string {

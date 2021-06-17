@@ -36,7 +36,7 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 
 		network, _ := nic["network"].(string) // we get empty name if it isn't set
 		nics[i] = &ssclient.NetworkData{
-			NetwrokID: network,
+			NetworkID: network,
 			Bandwidth: nic["bandwidth"].(int),
 		}
 	}
@@ -61,7 +61,7 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 	}
 
 	// ----- Set Root Volume -----
-	rootVolumeSize := d.Get("root_volume_size").(int)
+	rootVolumeSize := d.Get("boot_volume_size").(int)
 	rootVolume := &ssclient.VolumeData{
 		Name:   "boot",
 		SizeMB: rootVolumeSize,
@@ -99,9 +99,9 @@ func resourceServerUpdate(ctx context.Context, d *schema.ResourceData, m interfa
 		}
 	}
 
-	if d.HasChange("root_volume_size") {
-		rootVolumeID := d.Get("root_volume_id").(int)
-		newRootSize := d.Get("root_volume_size").(int)
+	if d.HasChange("boot_volume_size") {
+		rootVolumeID := d.Get("boot_volume_id").(int)
+		newRootSize := d.Get("boot_volume_size").(int)
 		rootName := "boot"
 		if _, err := client.UpdateVolume(serverID, rootVolumeID, rootName, newRootSize); err != nil {
 			return diag.FromErr(err)
@@ -113,11 +113,12 @@ func resourceServerUpdate(ctx context.Context, d *schema.ResourceData, m interfa
 			return diag.FromErr(err)
 		}
 	}
-	return resourceServerRead(ctx, d, m)
 
+	return resourceServerRead(ctx, d, m)
 }
 
 func resourceServerRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+
 	client := m.(*ssclient.SSClient)
 
 	// Warning or errors can be collected in a slice type
@@ -147,10 +148,10 @@ func resourceServerRead(ctx context.Context, d *schema.ResourceData, m interface
 	}
 
 	volumesWithoutRoot, rootVolume := splitRootFromVolumes(server.Volumes)
-	if err := d.Set("root_volume_size", rootVolume.Size); err != nil {
+	if err := d.Set("boot_volume_size", rootVolume.Size); err != nil {
 		return diag.FromErr(err)
 	}
-	if err := d.Set("root_volume_id", rootVolume.ID); err != nil {
+	if err := d.Set("boot_volume_id", rootVolume.ID); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -169,16 +170,23 @@ func resourceServerRead(ctx context.Context, d *schema.ResourceData, m interface
 
 	nics := make([]map[string]interface{}, len(server.NICS))
 	for i, nic := range server.NICS {
-		nics[i] = map[string]interface{}{
-			"id":           nic.ID,
-			"network":      nic.NetworkID,
-			"bandwidth":    nic.BandwidthMBPS,
-			"network_type": nic.NetworkType,
+		if nic.NetworkType == ssclient.PublicSharedNetwork {
+			nics[i] = map[string]interface{}{
+				"id":           nic.ID,
+				"network":      nil,
+				"bandwidth":    nic.BandwidthMBPS,
+				"network_type": nic.NetworkType,
+			}
+		} else {
+			nics[i] = map[string]interface{}{
+				"id":           nil,
+				"network":      nic.NetworkID,
+				"bandwidth":    nil,
+				"network_type": nic.NetworkType,
+			}
 		}
 	}
-
 	d.Set("nic", nics)
-
 	d.SetId(serverID)
 
 	return diags
@@ -250,72 +258,6 @@ func updateVolumes(d *schema.ResourceData, client *ssclient.SSClient, serverID s
 			}
 		}
 	}
-	return nil
-}
-
-func updateNICS(d *schema.ResourceData, client *ssclient.SSClient, serverID string) error {
-	oldNICSValueIfaces, newNICSValueIfaces := d.GetChange("nic")
-
-	oldNICValues := make(map[int]map[string]interface{}, len(oldNICSValueIfaces.([]interface{})))
-	for _, nic := range oldNICSValueIfaces.([]interface{}) {
-		mappedVolume := nic.(map[string]interface{})
-		nicID := mappedVolume["id"].(int)
-		oldNICValues[nicID] = mappedVolume
-	}
-
-	newNICValues := make(map[int]map[string]interface{}, len(newNICSValueIfaces.([]interface{})))
-	for _, nic := range newNICSValueIfaces.([]interface{}) {
-		mappedVolume := nic.(map[string]interface{})
-		nicID := mappedVolume["id"].(int)
-		newNICValues[nicID] = mappedVolume
-	}
-
-	// ----- NICS -----
-	// check chenged nics
-	for nicID, oldNIC := range oldNICValues {
-		if newNIC, exist := newNICValues[nicID]; exist {
-			netType := newNIC["network_type"].(string)
-			if netType == "shared_public" {
-				oldBandwidth := oldNIC["bandwidth"].(int)
-				newBandwidth := newNIC["bandwidth"].(int)
-				if newBandwidth != oldBandwidth {
-					if _, err := client.UpdatePublicNICAndWait(serverID, nicID, newBandwidth); err != nil {
-						return err
-					}
-				}
-			} else {
-				oldNetworkID := oldNIC["network"].(string)
-				newNetworkID := newNIC["network"].(string)
-				if oldNetworkID != newNetworkID {
-					if err := client.DeleteNIC(serverID, nicID); err != nil {
-						return err
-					}
-					if _, err := client.CreateNICAndWait(serverID, newNetworkID, 0); err != nil {
-						return err
-					}
-				}
-			}
-
-		} else {
-			// if nic was removed
-			if err := client.DeleteNIC(serverID, nicID); err != nil {
-				return err
-			}
-		}
-	}
-
-	// try to find new volumes
-	for nicID, newNIC := range newNICValues {
-		if _, exist := oldNICValues[nicID]; !exist {
-			networkID := newNIC["network"].(string)
-			bandwidth := newNIC["bandwidth"].(int)
-
-			if _, err := client.CreateNIC(serverID, networkID, bandwidth); err != nil {
-				return err
-			}
-		}
-	}
-
 	return nil
 }
 

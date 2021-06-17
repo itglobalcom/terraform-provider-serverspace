@@ -13,7 +13,7 @@ type (
 	}
 
 	NetworkData struct {
-		NetwrokID string `json:"netwrok_id,omitempty"`
+		NetworkID string `json:"network_id,omitempty"`
 		Bandwidth int    `json:"bandwidth_mbps,omitempty"`
 	}
 
@@ -21,6 +21,7 @@ type (
 		ID         string          `json:"id,omitempty"`
 		Name       string          `json:"name,omitempty"`
 		LocationID string          `json:"location_id,omitempty"`
+		State      string          `json:"state,omitempty"`
 		CPU        int             `json:"cpu,omitempty"`
 		RAM        int             `json:"ram_mb,omitempty"`
 		Volumes    []*VolumeEntity `json:"volumes,omitempty"`

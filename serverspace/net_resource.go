@@ -11,7 +11,7 @@ import (
 func resourcNetwork() *schema.Resource {
 	return &schema.Resource{
 		CreateContext: resourceNetworkCreate,
-		ReadContext:   resourceNetworkCreate,
+		ReadContext:   resourceNetworkRead,
 		UpdateContext: resourceNetworkUpdate,
 		DeleteContext: resourceNetworkDelete,
 		Schema:        networkSchema,
@@ -27,7 +27,7 @@ func resourceNetworkCreate(ctx context.Context, d *schema.ResourceData, m interf
 	name := d.Get("name").(string)
 	description := d.Get("description").(string)
 	location := d.Get("location").(string)
-	netwrokProefix := d.Get("networkPrefix").(string)
+	netwrokProefix := d.Get("network_prefix").(string)
 	mask := d.Get("mask").(int)
 
 	network, err := client.CreateNetworkAndWait(name, location, description, netwrokProefix, mask)
@@ -79,7 +79,7 @@ func resourceNetworkRead(ctx context.Context, d *schema.ResourceData, m interfac
 		return diag.FromErr(err)
 	}
 
-	if err := d.Set("networkPrefix", network.NetworkPrefix); err != nil {
+	if err := d.Set("network_prefix", network.NetworkPrefix); err != nil {
 		return diag.FromErr(err)
 	}
 

@@ -23,6 +23,11 @@ var networkSchema = map[string]*schema.Schema{
 		Required: true,
 		ForceNew: true,
 	},
+	"network_prefix": {
+		Type:     schema.TypeString,
+		Required: true,
+		ForceNew: true,
+	},
 	"mask": {
 		Type:     schema.TypeInt,
 		Required: true,
