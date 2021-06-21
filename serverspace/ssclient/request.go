@@ -1,7 +1,9 @@
 package ssclient
 
 import (
+	"encoding/json"
 	"errors"
+	"log"
 
 	"github.com/go-resty/resty/v2"
 )
@@ -17,6 +19,27 @@ const (
 	methodHead
 	methodOptions
 )
+
+func (m methodType) String() string {
+	switch m {
+	case methodGet:
+		return "GET"
+	case methodPost:
+		return "POST"
+	case methodPut:
+		return "PUT"
+	case methodDelete:
+		return "DELETE"
+	case methodPatch:
+		return "PATCH"
+	case methodHead:
+		return "HEAD"
+	case methodOptions:
+		return "OPTIONS"
+	default:
+		panic("WRONG METHOD ID")
+	}
+}
 
 func makeRequest(
 	client *resty.Client,
@@ -35,6 +58,20 @@ func makeRequest(
 		resp *resty.Response
 		err  error
 	)
+	debugReqest, err := json.MarshalIndent(struct {
+		Method string      `json:"method,omitempty"`
+		URL    string      `json:"url,omitempty"`
+		Body   interface{} `json:"body,omitempty"`
+	}{
+		Method: method.String(),
+		URL:    url,
+		Body:   payload,
+	}, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	log.Default().Println("[DEBUG]  Request: ", string(debugReqest))
+
 	switch method {
 	case methodGet:
 		resp, err = request.Get(url)
@@ -54,6 +91,27 @@ func makeRequest(
 		return nil, errors.New("Wrong method type")
 	}
 
+	respBody := resp.Result()
+	debugReqest, err = json.MarshalIndent(struct {
+		Method     string      `json:"method,omitempty"`
+		URL        string      `json:"url,omitempty"`
+		Body       interface{} `json:"body,omitempty"`
+		Statuscode int         `json:"status_code,omitempty"`
+		Status     string      `json:"status,omitempty"`
+		Response   interface{} `json:"response,omitempty"`
+	}{
+		Method:     method.String(),
+		URL:        resp.Request.URL,
+		Body:       payload,
+		Statuscode: resp.StatusCode(),
+		Status:     resp.Status(),
+		Response:   respBody,
+	}, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	log.Default().Println("[DEBUG]  Performed request ", string(debugReqest))
+
 	if err != nil {
 		return nil, NewRequestError(resp, err)
 	}
@@ -62,5 +120,5 @@ func makeRequest(
 		return nil, NewRequestError(resp, nil)
 	}
 
-	return resp.Result(), nil
+	return respBody, nil
 }

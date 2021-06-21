@@ -25,7 +25,8 @@ func Provider() *schema.Provider {
 		},
 		ResourcesMap: map[string]*schema.Resource{
 			"serverspace_server":           resourceServer(),
-			"serverspace_isolated_network": resourcNetwork(),
+			"serverspace_isolated_network": resourceNetwork(),
+			"serverspace_ssh":              resourceSSH(),
 		},
 		ConfigureContextFunc: providerConfigure,
 	}

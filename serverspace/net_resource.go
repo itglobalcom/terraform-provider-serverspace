@@ -8,7 +8,7 @@ import (
 	"gitlab.itglobal.com/b2c/terraform-provider-serverspace/serverspace/ssclient"
 )
 
-func resourcNetwork() *schema.Resource {
+func resourceNetwork() *schema.Resource {
 	return &schema.Resource{
 		CreateContext: resourceNetworkCreate,
 		ReadContext:   resourceNetworkRead,

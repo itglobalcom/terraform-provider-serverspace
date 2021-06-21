@@ -8,9 +8,10 @@ terraform {
 }
 
 
-# resource "serverspace_ssh" "my_ssh" {
-#   ssh = var.my_ssh_key
-# }
+resource "serverspace_ssh" "my_ssh" {
+  name       = "just a key"
+  public_key = file(var.ssh_key_path)
+}
 
 resource "serverspace_isolated_network" "my_net" {
   location       = var.am_location
@@ -37,7 +38,7 @@ resource "serverspace_server" "vm1" {
   nic {
     # network = serverspace_isolated_network.my_net.id
     network_type = "PublicShared"
-    bandwidth = 50
+    bandwidth    = 50
   }
 
   #  nic {
@@ -48,7 +49,7 @@ resource "serverspace_server" "vm1" {
 
 
   ssh_keys = [
-  #   serverspace_ssh.my_ssh.id
+    serverspace_ssh.my_ssh.id,
   ]
 }
 
