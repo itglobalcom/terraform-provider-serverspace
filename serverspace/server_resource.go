@@ -28,16 +28,21 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 	cpu := d.Get("cpu").(int)
 	ram := d.Get("ram").(int)
 
-	rawNics := d.Get("nic").([]interface{})
-	nics := make([]*ssclient.NetworkData, len(rawNics))
+	rawPublicNICS := d.Get("public_nic").(*schema.Set).List()
+	rawPrivateNICS := d.Get("private_nic").(*schema.Set).List()
+	nics := make([]*ssclient.NetworkData, len(rawPublicNICS)+len(rawPrivateNICS))
 
-	for i, rawNic := range rawNics {
+	for i, rawNic := range rawPublicNICS {
 		nic := rawNic.(map[string]interface{})
-
-		network, _ := nic["network"].(string) // we get empty name if it isn't set
 		nics[i] = &ssclient.NetworkData{
-			NetworkID: network,
 			Bandwidth: nic["bandwidth"].(int),
+		}
+	}
+
+	for i, rawNic := range rawPrivateNICS {
+		nic := rawNic.(map[string]interface{})
+		nics[i] = &ssclient.NetworkData{
+			NetworkID: nic["network"].(string),
 		}
 	}
 
@@ -118,7 +123,6 @@ func resourceServerUpdate(ctx context.Context, d *schema.ResourceData, m interfa
 }
 
 func resourceServerRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-
 	client := m.(*ssclient.SSClient)
 
 	// Warning or errors can be collected in a slice type
@@ -168,25 +172,25 @@ func resourceServerRead(ctx context.Context, d *schema.ResourceData, m interface
 		return diag.FromErr(err)
 	}
 
-	nics := make([]map[string]interface{}, len(server.NICS))
-	for i, nic := range server.NICS {
+	publicNICS := make([]map[string]interface{}, 0)
+	privateNICS := make([]map[string]interface{}, 0)
+	for _, nic := range server.NICS {
 		if nic.NetworkType == ssclient.PublicSharedNetwork {
-			nics[i] = map[string]interface{}{
-				"id":           nic.ID,
-				"network":      nil,
-				"bandwidth":    nic.BandwidthMBPS,
-				"network_type": nic.NetworkType,
-			}
+			publicNICS = append(publicNICS, map[string]interface{}{
+				"id":        nic.ID,
+				"bandwidth": nic.BandwidthMBPS,
+			})
 		} else {
-			nics[i] = map[string]interface{}{
-				"id":           nil,
-				"network":      nic.NetworkID,
-				"bandwidth":    nil,
-				"network_type": nic.NetworkType,
-			}
+			privateNICS = append(privateNICS, map[string]interface{}{
+				"network": nic.NetworkID,
+			})
 		}
 	}
-	d.Set("nic", nics)
+	d.Set("public_nic", publicNICS)
+	d.Set("private_nic", privateNICS)
+
+	d.Set("ssh_keys", server.SSHKeyIDS)
+
 	d.SetId(serverID)
 
 	return diags

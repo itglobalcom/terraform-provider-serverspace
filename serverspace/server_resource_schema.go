@@ -3,7 +3,6 @@ package serverspace
 import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
-	"gitlab.itglobal.com/b2c/terraform-provider-serverspace/serverspace/ssclient"
 )
 
 var serverSchema = map[string]*schema.Schema{
@@ -68,43 +67,53 @@ var serverSchema = map[string]*schema.Schema{
 			},
 		},
 	},
-	"nic": {
-		Type:     schema.TypeList,
+	"public_nic": {
+		Type:     schema.TypeSet,
 		Required: true,
-		MinItems: 1,
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
 				"id": {
 					Type:     schema.TypeInt,
+					Optional: true,
 					Computed: true,
 				},
+				"bandwidth": {
+					Type:         schema.TypeInt,
+					Required:     true,
+					ValidateFunc: validation.IntBetween(0, 100),
+				},
+				"ip_address": {
+					Type:     schema.TypeString,
+					Optional: true,
+					Computed: true,
+				},
+			},
+		},
+	},
+
+	"private_nic": {
+		Type:     schema.TypeSet,
+		Optional: true,
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
 				"network": {
 					Type:         schema.TypeString,
 					Optional:     true,
 					Computed:     true,
 					ComputedWhen: []string{"bandwidth"},
 				},
-				"network_type": {
+				"ip_address": {
 					Type:     schema.TypeString,
-					Required: true,
-					ValidateFunc: validation.StringInSlice([]string{
-						string(ssclient.PublicSharedNetwork),
-						string(ssclient.IsolatedNetwork),
-					}, false),
-				},
-				"bandwidth": {
-					Type:         schema.TypeInt,
-					Optional:     true,
-					Computed:     true,
-					ComputedWhen: []string{"network"},
-					ValidateFunc: validation.IntBetween(0, 100),
+					Optional: true,
+					Computed: true,
 				},
 			},
 		},
 	},
 	"ssh_keys": {
 		Type:     schema.TypeList,
-		Required: true,
+		Optional: true,
+		Computed: true,
 		ForceNew: true,
 		Elem: &schema.Schema{
 			Type: schema.TypeInt,

@@ -6,38 +6,21 @@ import (
 )
 
 func updateNICS(d *schema.ResourceData, client *ssclient.SSClient, serverID string) error {
-	oldPublicNICS := make([]map[string]interface{}, 0)
-	oldPrivateNICS := make([]map[string]interface{}, 0)
-	newPublicNICS := make([]map[string]interface{}, 0)
-	newPrivateNICS := make([]map[string]interface{}, 0)
+	// Preparing network data
+	oldPublicNICSValueIfaces, newPublicNICSValueIfaces := d.GetChange("public_nic")
+	oldPublicNICS := convertNICSToMap(oldPublicNICSValueIfaces)
+	newPublicNICS := convertNICSToMap(newPublicNICSValueIfaces)
 
-	oldNICSValueIfaces, newNICSValueIfaces := d.GetChange("nic")
+	oldPrivateNICSValueIfaces, newPrivateICSValueIfaces := d.GetChange("public_nic")
+	oldPrivateNICS := convertNICSToMap(oldPrivateNICSValueIfaces)
+	newPrivateNICS := convertNICSToMap(newPrivateICSValueIfaces)
 
-	for _, nic := range oldNICSValueIfaces.([]interface{}) {
-		mappedNIC := nic.(map[string]interface{})
-		netType := ssclient.NetworkType(mappedNIC["network_type"].(string))
-		if netType == ssclient.PublicSharedNetwork {
-			oldPublicNICS = append(oldPublicNICS, mappedNIC)
-		} else {
-			oldPrivateNICS = append(oldPrivateNICS, mappedNIC)
-		}
-	}
-
-	for _, nic := range newNICSValueIfaces.([]interface{}) {
-		mappedNIC := nic.(map[string]interface{})
-		netType := ssclient.NetworkType(mappedNIC["network_type"].(string))
-		if netType == ssclient.PublicSharedNetwork {
-			newPublicNICS = append(newPublicNICS, mappedNIC)
-		} else {
-			newPrivateNICS = append(newPrivateNICS, mappedNIC)
-		}
-	}
-
-	if err := updatePrivateNICS(client, serverID, oldPrivateNICS, newPrivateNICS); err != nil {
+	// Perform operations on a server
+	if err := updatePublicNICS(client, serverID, oldPublicNICS, newPublicNICS); err != nil {
 		return err
 	}
 
-	return updatePublicNICS(client, serverID, oldPublicNICS, newPublicNICS)
+	return updatePrivateNICS(client, serverID, oldPrivateNICS, newPrivateNICS)
 }
 
 func updatePublicNICS(
@@ -132,4 +115,15 @@ func findNICByID(nics []map[string]interface{}, nicID int) map[string]interface{
 		}
 	}
 	return nil
+}
+
+func convertNICSToMap(nics interface{}) []map[string]interface{} {
+	tmpRepr := nics.([]interface{})
+	convertedNICS := make([]map[string]interface{}, len(tmpRepr))
+
+	for _, nic := range tmpRepr {
+		convertedNICS = append(convertedNICS, nic.(map[string]interface{}))
+	}
+
+	return convertedNICS
 }

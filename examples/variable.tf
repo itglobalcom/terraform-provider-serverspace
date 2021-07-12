@@ -13,3 +13,10 @@ variable "ssh_key_path" {
   description = "The file path to an ssh public key"
   default     = "~/.ssh/id_rsa.pub"
 }
+
+
+variable "ssh_private_key_path" {
+  type        = string
+  description = "The file path to an ssh privte key"
+  default     = "~/.ssh/id_rsa"
+}

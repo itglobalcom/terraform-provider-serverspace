@@ -26,6 +26,7 @@ type (
 		RAM        int             `json:"ram_mb,omitempty"`
 		Volumes    []*VolumeEntity `json:"volumes,omitempty"`
 		NICS       []*NICEntity    `json:"nics,omitempty"`
+		SSHKeyIDS  []int           `json:"ssh_key_ids,omitempty"`
 	}
 
 	serverResponseWrap struct {

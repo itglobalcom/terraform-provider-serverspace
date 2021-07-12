@@ -3,6 +3,7 @@ package serverspace
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -25,7 +26,7 @@ func resourceSSHCreate(ctx context.Context, d *schema.ResourceData, m interface{
 	var diags diag.Diagnostics
 
 	name := d.Get("name").(string)
-	publicSSH := d.Get("public_key").(string)
+	publicSSH := makeNormalSSHKey(d.Get("public_key").(string))
 	sshKey, err := client.CreateSSHKey(name, publicSSH)
 	if err != nil {
 		return diag.FromErr(err)
@@ -52,7 +53,7 @@ func resourceSSHRead(ctx context.Context, d *schema.ResourceData, m interface{})
 		return diag.FromErr(err)
 	}
 
-	if err := d.Set("public_key", sshKey.PublicKey); err != nil {
+	if err := d.Set("public_key", makeNormalSSHKey(sshKey.PublicKey)); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -74,4 +75,18 @@ func resourceSSHDelete(ctx context.Context, d *schema.ResourceData, m interface{
 	}
 
 	return diags
+}
+
+func makeNormalSSHKey(sshKey string) string {
+	result := sshKey
+	result = strings.ReplaceAll(result, "<<~EOT", "")
+	result = strings.ReplaceAll(result, "EOT", "")
+	result = strings.ReplaceAll(result, "\r", "")
+
+	lines := make([]string, 0)
+	for _, line := range strings.Split(result, "\n") {
+		lines = append(lines, strings.TrimSpace(line))
+	}
+
+	return strings.Join(lines, "")
 }
