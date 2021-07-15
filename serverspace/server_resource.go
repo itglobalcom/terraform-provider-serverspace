@@ -2,8 +2,11 @@ package serverspace
 
 import (
 	"context"
+	"fmt"
+	"log"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"gitlab.itglobal.com/b2c/terraform-provider-serverspace/serverspace/ssclient"
 )
@@ -15,6 +18,206 @@ func resourceServer() *schema.Resource {
 		UpdateContext: resourceServerUpdate,
 		DeleteContext: resourceServerDelete,
 		Schema:        serverSchema,
+		CustomizeDiff: customdiff.All(
+			customdiff.ValidateValue("nic", func(ctx context.Context, value, meta interface{}) error {
+				nics := value.(*schema.Set).List()
+				for _, nic := range nics {
+					mappedNIC := nic.(map[string]interface{})
+					netType := ssclient.NetworkType(mappedNIC["network_type"].(string))
+					if netType == ssclient.PublicSharedNetwork {
+						if mappedNIC["bandwidth"].(int) == 0 {
+							return fmt.Errorf("bandwidth for PublicShared interface shuold be more than 0")
+						}
+
+						if mappedNIC["network"].(string) != "" {
+							return fmt.Errorf("network value for PublicShared interface shuold be \"\" (empty string)")
+						}
+					} else {
+						if mappedNIC["bandwidth"].(int) != 0 {
+							return fmt.Errorf("bandwidth for Isolated interface shuold be 0")
+						}
+
+						if mappedNIC["network"].(string) == "" {
+							return fmt.Errorf("network value for Isolated interface shuold be equal some network id. Now it is  \"\" (empty string)")
+						}
+					}
+				}
+				return nil
+			}),
+			func(c context.Context, rd *schema.ResourceDiff, rawClient interface{}) error {
+				client := rawClient.(*ssclient.SSClient)
+
+				serverID := rd.Id()
+
+				// validate nics
+				if serverID != "" && rd.HasChange("nic") {
+					snapshots, err := client.GetSnapshotList(serverID)
+					if err != nil {
+						return err
+					}
+					if len(snapshots) != 0 {
+						return fmt.Errorf("You can't change networks when have snapshots")
+					}
+				}
+
+				// validate location limits
+				locationsLimit, err := client.GetLocationList()
+				if err != nil {
+					return err
+				}
+
+				location := rd.Get("location").(string)
+				var locationLimit *ssclient.LocationEntity
+
+				for _, loc := range locationsLimit {
+					if loc.ID == location {
+						locationLimit = loc
+						break
+					}
+				}
+
+				// FIXME: What should I do when location isn't found?
+				if locationLimit == nil {
+					return nil
+				}
+
+				// check CPU
+				if rd.HasChange("cpu") {
+					cpu := rd.Get("cpu").(int)
+
+					found := false
+					for _, possibleValue := range locationLimit.CPUQuantityOptions {
+						if cpu == possibleValue {
+							found = true
+							break
+						}
+					}
+
+					if !found {
+						return fmt.Errorf("CPU value (%d) is not in the list of valid. Possible values: %v",
+							cpu,
+							locationLimit.CPUQuantityOptions,
+						)
+					}
+				}
+
+				// check RAM
+				if rd.HasChange("ram") {
+					ram := rd.Get("ram").(int)
+
+					found := false
+					for _, possibleValue := range locationLimit.RAMSizeOptions {
+						if ram == possibleValue {
+							found = true
+							break
+						}
+					}
+
+					if !found {
+						return fmt.Errorf("RAM value (%d) is not in the list of valid. Possible values: %v",
+							ram,
+							locationLimit.RAMSizeOptions,
+						)
+					}
+				}
+
+				// check Boot volume
+				if rd.HasChange("boot_volume_size") {
+					oldRawBootSize, newRawBootSize := rd.GetChange("boot_volume_size")
+					oldBootSize := oldRawBootSize.(int)
+					newBootSize := newRawBootSize.(int)
+
+					if newBootSize < locationLimit.SystemVolumeMin || newBootSize > locationLimit.VolumeMax {
+						return fmt.Errorf("boot volume size should be between %d and %d on location %s. Now it is %d",
+							locationLimit.SystemVolumeMin,
+							locationLimit.VolumeMax,
+							location,
+							newBootSize,
+						)
+					}
+					if newBootSize < oldBootSize {
+						return fmt.Errorf("new boot volume size %d should be more than old boot size %d",
+							newBootSize,
+							oldBootSize,
+						)
+					}
+					if newBootSize%1024 != 0 {
+						return fmt.Errorf("new boot volume size must be a multiple of 10Gb (1024Mb). Now it is %d",
+							newBootSize,
+						)
+					}
+				}
+
+				// check additional volumes
+				if rd.HasChange("volume") {
+					oldRawVolumes, newRawVolumes := rd.GetChange("volume")
+
+					for i, newRawVolume := range newRawVolumes.([]interface{}) {
+						newVolume := newRawVolume.(map[string]interface{})
+						newVolumeSize := newVolume["size"].(int)
+
+						if newVolumeSize < locationLimit.AdditionalVolumeMin || newVolumeSize > locationLimit.VolumeMax {
+							return fmt.Errorf("volume size should be between %d and %d in location %s. Now it is %d (index: %d)",
+								locationLimit.AdditionalVolumeMin,
+								locationLimit.VolumeMax,
+								location,
+								newVolumeSize,
+								i,
+							)
+						}
+
+						for _, oldRawVolume := range oldRawVolumes.([]interface{}) {
+							oldVolume := oldRawVolume.(map[string]interface{})
+
+							newVolumeID := newVolume["id"].(int)
+							oldVolumeID := oldVolume["id"].(int)
+
+							if newVolumeID == oldVolumeID {
+								oldVolumeSize := oldVolume["size"].(int)
+								if newVolumeSize < oldVolumeSize {
+									return fmt.Errorf("new volume size %d (index: %d) less than old volume size %d. You can only increase volume size",
+										newVolumeSize,
+										i,
+										oldVolumeSize,
+									)
+								}
+							}
+						}
+
+						if newVolumeSize%1024 != 0 {
+							return fmt.Errorf("new volume size must be a multiple of 10Gb (1024Mb). Now it is %d",
+								newVolumeSize,
+							)
+						}
+					}
+				}
+
+				if rd.HasChange("nic") {
+					rd.SetNewComputed("public_ip_addresses")
+
+					newNICS := rd.Get("nic").(*schema.Set).List()
+
+					for _, newRawNIC := range newNICS {
+						newNIC := newRawNIC.(map[string]interface{})
+						netType := ssclient.NetworkType(newNIC["network_type"].(string))
+
+						if netType == ssclient.PublicSharedNetwork {
+							bandwidth := newNIC["bandwidth"].(int)
+							if bandwidth < locationLimit.BandwidthMin || bandwidth > locationLimit.BandwidthMax {
+								return fmt.Errorf("shared network connection bandwidth should be between %d and %d in location location %s. Now it is %d",
+									locationLimit.BandwidthMin,
+									locationLimit.BandwidthMax,
+									location,
+									bandwidth,
+								)
+							}
+						}
+					}
+				}
+
+				return nil
+			},
+		),
 	}
 }
 
@@ -22,29 +225,36 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 	client := m.(*ssclient.SSClient)
 	var diags diag.Diagnostics
 
+	// ----- One value params -----
+
 	name := d.Get("name").(string)
 	location := d.Get("location").(string)
 	image := d.Get("image").(string)
 	cpu := d.Get("cpu").(int)
 	ram := d.Get("ram").(int)
 
-	rawPublicNICS := d.Get("public_nic").(*schema.Set).List()
-	rawPrivateNICS := d.Get("private_nic").(*schema.Set).List()
-	nics := make([]*ssclient.NetworkData, len(rawPublicNICS)+len(rawPrivateNICS))
+	// ----- NICS -----
 
-	for i, rawNic := range rawPublicNICS {
-		nic := rawNic.(map[string]interface{})
-		nics[i] = &ssclient.NetworkData{
-			Bandwidth: nic["bandwidth"].(int),
+	rawNICS := d.Get("nic").(*schema.Set)
+	nics := make([]*ssclient.NetworkData, rawNICS.Len())
+
+	for i, rawNIC := range rawNICS.List() {
+		nic := rawNIC.(map[string]interface{})
+		log.Default().Println(nic)
+
+		netType := ssclient.NetworkType(nic["network_type"].(string))
+		if netType == ssclient.PublicSharedNetwork {
+			nics[i] = &ssclient.NetworkData{
+				Bandwidth: nic["bandwidth"].(int),
+			}
+		} else {
+			nics[i] = &ssclient.NetworkData{
+				NetworkID: nic["network"].(string),
+			}
 		}
 	}
 
-	for i, rawNic := range rawPrivateNICS {
-		nic := rawNic.(map[string]interface{})
-		nics[i] = &ssclient.NetworkData{
-			NetworkID: nic["network"].(string),
-		}
-	}
+	// ----- SSH -----
 
 	rawSSHKeyIds := d.Get("ssh_keys").([]interface{})
 	sshKeyIds := make([]int, len(rawSSHKeyIds))
@@ -52,7 +262,8 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 		sshKeyIds[i] = v.(int)
 	}
 
-	// ----- Set Volumes -----
+	// ----- Volumes -----
+
 	rawVolumes := d.Get("volume").([]interface{})
 	volumes := make([]*ssclient.VolumeData, len(rawVolumes))
 
@@ -65,7 +276,8 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 		volumes[i] = volume
 	}
 
-	// ----- Set Root Volume -----
+	// ----- Root Volume -----
+
 	rootVolumeSize := d.Get("boot_volume_size").(int)
 	rootVolume := &ssclient.VolumeData{
 		Name:   "boot",
@@ -74,6 +286,7 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 	volumes = append(volumes, rootVolume)
 
 	// ----- Perform server creating -----
+
 	server, err := client.CreateServerAndWait(name, location, image, cpu, ram, volumes, nics, sshKeyIds)
 	if err != nil {
 		return diag.FromErr(err)
@@ -172,22 +385,29 @@ func resourceServerRead(ctx context.Context, d *schema.ResourceData, m interface
 		return diag.FromErr(err)
 	}
 
-	publicNICS := make([]map[string]interface{}, 0)
-	privateNICS := make([]map[string]interface{}, 0)
+	nics := make([]map[string]interface{}, 0)
+	publicIPS := make([]string, 0)
 	for _, nic := range server.NICS {
+		var network string
+		var bandwidth int
 		if nic.NetworkType == ssclient.PublicSharedNetwork {
-			publicNICS = append(publicNICS, map[string]interface{}{
-				"id":        nic.ID,
-				"bandwidth": nic.BandwidthMBPS,
-			})
+			network = ""
+			bandwidth = nic.BandwidthMBPS
+			publicIPS = append(publicIPS, nic.IPAddress)
 		} else {
-			privateNICS = append(privateNICS, map[string]interface{}{
-				"network": nic.NetworkID,
-			})
+			network = nic.NetworkID
+			bandwidth = 0
 		}
+		nics = append(nics, map[string]interface{}{
+			"id":           nic.ID,
+			"network_type": nic.NetworkType,
+			"network":      network,
+			"bandwidth":    bandwidth,
+			"ip_address":   nic.IPAddress,
+		})
 	}
-	d.Set("public_nic", publicNICS)
-	d.Set("private_nic", privateNICS)
+	d.Set("nic", nics)
+	d.Set("public_ip_addresses", publicIPS)
 
 	d.Set("ssh_keys", server.SSHKeyIDS)
 

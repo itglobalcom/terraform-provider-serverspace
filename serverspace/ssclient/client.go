@@ -22,25 +22,24 @@ type SSClient struct {
 	Host   string
 }
 
-func NewClient(key string, host *string) (*SSClient, error) {
-	if host == nil {
+func NewClient(key string, host string) (*SSClient, error) {
+	if host == "" {
 		if len(key) < 2 {
 			return nil, NewWrongKeyFormatError(nil)
 		}
-		host_index := key[:2]
-		if host == nil {
-			var ok bool
-			if *host, ok = HOST_MAP[host_index]; !ok {
-				return nil, NewWrongKeyFormatError(nil)
-			}
+
+		var ok bool
+		hostIndex := key[:2]
+		if host, ok = HOST_MAP[hostIndex]; !ok {
+			return nil, NewWrongKeyFormatError(nil)
 		}
 	}
 
 	client := resty.New()
 	client.SetHeader("X-API-KEY", key)
 
-	baseURL := fmt.Sprintf("%s/%s", *host, "api/v1/")
+	baseURL := fmt.Sprintf("%s/%s", host, "api/v1/")
 	client.SetHostURL(baseURL)
 
-	return &SSClient{client, key, *host}, nil
+	return &SSClient{client, key, host}, nil
 }

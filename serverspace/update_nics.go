@@ -1,26 +1,63 @@
 package serverspace
 
 import (
+	"fmt"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"gitlab.itglobal.com/b2c/terraform-provider-serverspace/serverspace/ssclient"
 )
 
 func updateNICS(d *schema.ResourceData, client *ssclient.SSClient, serverID string) error {
 	// Preparing network data
-	oldPublicNICSValueIfaces, newPublicNICSValueIfaces := d.GetChange("public_nic")
-	oldPublicNICS := convertNICSToMap(oldPublicNICSValueIfaces)
-	newPublicNICS := convertNICSToMap(newPublicNICSValueIfaces)
+	oldNICSValueIfaces, newNICSValueIfaces := d.GetChange("nic")
 
-	oldPrivateNICSValueIfaces, newPrivateICSValueIfaces := d.GetChange("public_nic")
-	oldPrivateNICS := convertNICSToMap(oldPrivateNICSValueIfaces)
-	newPrivateNICS := convertNICSToMap(newPrivateICSValueIfaces)
+	oldNICS := convertNICSSetToMap(oldNICSValueIfaces.(*schema.Set))
+	newNICS := convertNICSSetToMap(newNICSValueIfaces.(*schema.Set))
 
-	// Perform operations on a server
-	if err := updatePublicNICS(client, serverID, oldPublicNICS, newPublicNICS); err != nil {
+	existNICSigns := make([]string, 0)
+	for k := range oldNICS {
+		existNICSigns = append(existNICSigns, k)
+
+		// exclude non-changed networks
+		for _, sign := range existNICSigns {
+			if _, ok := newNICS[sign]; ok {
+				delete(oldNICS, sign)
+				delete(newNICS, sign)
+			}
+		}
+	}
+
+	publicOldNICS := make([]map[string]interface{}, 0)
+	privateOldNICS := make([]map[string]interface{}, 0)
+
+	for _, nic := range oldNICS {
+		nicNetworkType := ssclient.NetworkType(nic["network_type"].(string))
+
+		if nicNetworkType == ssclient.PublicSharedNetwork {
+			publicOldNICS = append(publicOldNICS, nic)
+		} else {
+			privateOldNICS = append(privateOldNICS, nic)
+		}
+	}
+
+	publicNewNICS := make([]map[string]interface{}, 0)
+	privateNewNICS := make([]map[string]interface{}, 0)
+
+	for _, nic := range newNICS {
+		nicNetworkType := ssclient.NetworkType(nic["network_type"].(string))
+
+		if nicNetworkType == ssclient.PublicSharedNetwork {
+			publicNewNICS = append(publicNewNICS, nic)
+		} else {
+			privateNewNICS = append(privateNewNICS, nic)
+		}
+	}
+
+	if err := updatePublicNICS(client, serverID, publicOldNICS, publicNewNICS); err != nil {
 		return err
 	}
 
-	return updatePrivateNICS(client, serverID, oldPrivateNICS, newPrivateNICS)
+	return updatePrivateNICS(client, serverID, privateOldNICS, privateNewNICS)
 }
 
 func updatePublicNICS(
@@ -28,32 +65,40 @@ func updatePublicNICS(
 	serverID string,
 	oldNICS, newNICS []map[string]interface{},
 ) error {
-	for _, oldNIC := range oldNICS {
-		nicID := oldNIC["id"].(int)
-		oldBandwidth := oldNIC["bandwidth"].(int)
+	// update exist nics
+	processedOldNICCount := 0
 
-		if newNIC := findNICByID(newNICS, nicID); newNIC == nil {
-			if err := client.DeleteNIC(serverID, nicID); err != nil {
-				return err
-			}
-		} else {
-			newBandwidth := newNIC["bandwidth"].(int)
-			if oldBandwidth != newBandwidth {
-				if _, err := client.UpdatePublicNICAndWait(serverID, nicID, newBandwidth); err != nil {
-					return err
-				}
-			}
+	for _, oldNIC := range oldNICS {
+
+		if len(newNICS) == 0 {
+			break
+		}
+
+		newNIC := newNICS[0]
+		newNICS = newNICS[1:]
+
+		nicID := oldNIC["id"].(int)
+		newBandwidth := newNIC["bandwidth"].(int)
+		if _, err := client.UpdatePublicNICAndWait(serverID, nicID, newBandwidth); err != nil {
+			return err
+		}
+		processedOldNICCount++
+	}
+	oldNICS = oldNICS[processedOldNICCount:] // remove already updated nics
+
+	for _, oldNIC := range oldNICS {
+		if err := client.DeleteNIC(serverID, oldNIC["id"].(int)); err != nil {
+			return err
 		}
 	}
+
 	for _, newNIC := range newNICS {
-		nicID := newNIC["id"].(int)
-		if findNICByID(oldNICS, nicID) == nil {
-			newNICBandwidth := newNIC["bandwidth"].(int)
-			if _, err := client.CreateNICAndWait(serverID, "", newNICBandwidth); err != nil {
-				return err
-			}
+		newNICBandwidth := newNIC["bandwidth"].(int)
+		if _, err := client.CreateNICAndWait(serverID, "", newNICBandwidth); err != nil {
+			return err
 		}
 	}
+
 	return nil
 }
 
@@ -62,68 +107,72 @@ func updatePrivateNICS(
 	serverID string,
 	oldNICS, newNICS []map[string]interface{},
 ) error {
-	currentNICEntities, err := client.GetNICList(serverID)
-	if err != nil {
-		return err
-	}
+	// update exist nics
+	processedOldNICCount := 0
 
 	for _, oldNIC := range oldNICS {
-		networkID := oldNIC["network"].(string)
-		if findNICByNetwork(newNICS, networkID) == nil {
-			nicEntity := findPrivateNICEntityByNetwork(currentNICEntities, networkID)
-			if nicEntity == nil {
-				continue
-			}
-			if err := client.DeleteNIC(serverID, nicEntity.ID); err != nil {
-				return err
-			}
+
+		if len(newNICS) == 0 {
+			break
+		}
+
+		newNIC := newNICS[0]
+		newNICS = newNICS[1:]
+
+		nicID := oldNIC["id"].(int)
+		newNetwork := newNIC["network"].(string)
+		if err := client.DeleteNIC(serverID, nicID); err != nil {
+			return err
+		}
+
+		if _, err := client.CreateNICAndWait(serverID, newNetwork, 0); err != nil {
+			return err
+		}
+
+		processedOldNICCount++
+	}
+	oldNICS = oldNICS[processedOldNICCount:] // remove already updated nics
+
+	for _, oldNIC := range oldNICS {
+		if err := client.DeleteNIC(serverID, oldNIC["id"].(int)); err != nil {
+			return err
 		}
 	}
+
 	for _, newNIC := range newNICS {
-		newNetworkID := newNIC["network"].(string)
-		if findNICByNetwork(oldNICS, newNetworkID) == nil {
-			if _, err := client.CreateNICAndWait(serverID, newNetworkID, 0); err != nil {
-				return err
-			}
+		newNetwork := newNIC["network"].(string)
+		if _, err := client.CreateNICAndWait(serverID, newNetwork, 0); err != nil {
+			return err
 		}
 	}
+
 	return nil
 }
 
-func findPrivateNICEntityByNetwork(nics []*ssclient.NICEntity, networkID string) *ssclient.NICEntity {
-	for _, nic := range nics {
-		if nic.NetworkType == ssclient.IsolatedNetwork && nic.NetworkID == networkID {
-			return nic
-		}
+func convertNICSSetToMap(nics *schema.Set) map[string]map[string]interface{} {
+	mappedNICS := convertSetToMap(nics)
+	signedNICS := make(map[string]map[string]interface{})
+
+	for _, nic := range mappedNICS {
+		signedNICS[getNICSignature(nic)] = nic
 	}
-	return nil
+
+	return signedNICS
 }
 
-func findNICByNetwork(nics []map[string]interface{}, networkID string) map[string]interface{} {
-	for _, nic := range nics {
-		if nic["network_id"].(string) == networkID {
-			return nic
-		}
+func convertSetToMap(set *schema.Set) []map[string]interface{} {
+	mapped := make([]map[string]interface{}, set.Len())
+
+	for i, nic := range set.List() {
+		mapped[i] = nic.(map[string]interface{})
 	}
-	return nil
+
+	return mapped
 }
 
-func findNICByID(nics []map[string]interface{}, nicID int) map[string]interface{} {
-	for _, nic := range nics {
-		if nic["id"].(int) == nicID {
-			return nic
-		}
-	}
-	return nil
-}
-
-func convertNICSToMap(nics interface{}) []map[string]interface{} {
-	tmpRepr := nics.([]interface{})
-	convertedNICS := make([]map[string]interface{}, len(tmpRepr))
-
-	for _, nic := range tmpRepr {
-		convertedNICS = append(convertedNICS, nic.(map[string]interface{}))
-	}
-
-	return convertedNICS
+func getNICSignature(nic map[string]interface{}) string {
+	netType := nic["network_type"].(string)
+	network := nic["network"].(string)
+	bandwidth := nic["bandwidth"].(int)
+	return fmt.Sprintf("%s-%s-%d", netType, network, bandwidth)
 }

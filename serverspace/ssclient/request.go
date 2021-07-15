@@ -93,12 +93,12 @@ func makeRequest(
 
 	respBody := resp.Result()
 	debugReqest, err = json.MarshalIndent(struct {
-		Method     string      `json:"method,omitempty"`
-		URL        string      `json:"url,omitempty"`
-		Body       interface{} `json:"body,omitempty"`
-		Statuscode int         `json:"status_code,omitempty"`
-		Status     string      `json:"status,omitempty"`
-		Response   interface{} `json:"response,omitempty"`
+		Method     string      `json:"method"`
+		URL        string      `json:"url"`
+		Body       interface{} `json:"body"`
+		Statuscode int         `json:"status_code"`
+		Status     string      `json:"status"`
+		Response   interface{} `json:"response"`
 	}{
 		Method:     method.String(),
 		URL:        resp.Request.URL,

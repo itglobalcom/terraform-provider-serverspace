@@ -38,7 +38,7 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 
 	var diags diag.Diagnostics
 
-	c, err := ssclient.NewClient(key, &host)
+	c, err := ssclient.NewClient(key, host)
 	if err != nil {
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,

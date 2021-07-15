@@ -8,23 +8,29 @@ terraform {
 }
 
 
+locals {
+  current_location = var.am_location
+}
+
+
 resource "serverspace_ssh" "my_ssh" {
   name       = "just a key"
-  public_key = file(var.ssh_key_path)
+  public_key = file("./ssh_key.pub")
 }
 
 resource "serverspace_isolated_network" "my_net" {
-  location       = var.am_location
+  location       = local.current_location
   name           = "my_net"
   description    = "Internal network"
   network_prefix = "192.168.0.0"
   mask           = 24
 }
 
+
 resource "serverspace_server" "vm1" {
   name     = "vm1"
   image    = var.ubuntu
-  location = var.am_location
+  location = local.current_location
   cpu      = 1
   ram      = 2048
 
@@ -35,25 +41,30 @@ resource "serverspace_server" "vm1" {
     size = 30720
   }
 
-  # public_nic {
-  #   bandwidth = 50
-  # }
-
-  # private_nic {
-  #   network = serverspace_isolated_network.my_net.id
-  # }
-
   nic {
-    # network = serverspace_isolated_network.my_net.id
+    network      = serverspace_isolated_network.my_net.id
+    network_type = "Isolated"
+    bandwidth    = 0
+  }
+  nic {
+    network      = ""
     network_type = "PublicShared"
     bandwidth    = 50
   }
+  nic {
+    network      = ""
+    network_type = "PublicShared"
+    bandwidth    = 100
+  }
+
+  ssh_keys = [serverspace_ssh.my_ssh.id]
+
 
   connection {
-    host        = self.public_nic[0].ip_address # Read-only attribute computed from connected networks
+    host        = self.public_ip_addresses[0] # Read-only attribute computed from connected networks
     user        = "root"
     type        = "ssh"
-    private_key = file(var.ssh_private_key_path)
+    private_key = file("./ssh_key")
     timeout     = "2m"
   }
 
@@ -62,16 +73,16 @@ resource "serverspace_server" "vm1" {
       "export PATH=$PATH:/usr/bin",
       # install nginx
       "sudo apt-get update",
-      "sudo apt-get -y install nginx"
+      "sudo apt-get -y install --no-install-recommends nano"
     ]
   }
 }
 
-# output "vm1" {
-#   value = serverspace_server.vm1
-# }
 
+output "my_net" {
+  value = serverspace_isolated_network.my_net
+}
 
-# output "my_net" {
-#   value = serverspace_isolated_network.my_net
-# }
+output "vm1" {
+  value = serverspace_server.vm1
+}
