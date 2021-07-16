@@ -49,8 +49,12 @@ func makeRequest(
 	res interface{},
 ) (interface{}, error) {
 	request := client.R().
-		SetResult(res). //SetError(map[string]interface{}{})
+		// .SetError(map[string]interface{}{})
 		SetError(&ErrorBodyResponse{})
+
+	if res != nil {
+		request = request.SetResult(res)
+	}
 	if payload != nil {
 		request = request.SetBody(payload)
 	}
