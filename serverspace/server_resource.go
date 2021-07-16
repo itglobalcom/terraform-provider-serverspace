@@ -3,7 +3,6 @@ package serverspace
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -254,7 +253,6 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 
 	for i, rawNIC := range rawNICS.List() {
 		nic := rawNIC.(map[string]interface{})
-		log.Default().Println(nic)
 
 		netType := ssclient.NetworkType(nic["network_type"].(string))
 		if netType == ssclient.PublicSharedNetwork {
