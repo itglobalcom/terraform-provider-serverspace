@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -48,22 +49,22 @@ func resourceServer() *schema.Resource {
 				client := rawClient.(*ssclient.SSClient)
 
 				serverID := rd.Id()
-
+				var err error
 				// validate nics
 				if serverID != "" && rd.HasChange("nic") {
-					snapshots, err := client.GetSnapshotList(serverID)
+					snapshots, clientErr := client.GetSnapshotList(serverID)
 					if err != nil {
-						return err
+						return clientErr
 					}
 					if len(snapshots) != 0 {
-						return fmt.Errorf("You can't change networks when have snapshots")
+						err = multierror.Append(err, fmt.Errorf("You can't change networks when have snapshots"))
 					}
 				}
 
 				// validate location limits
-				locationsLimit, err := client.GetLocationList()
+				locationsLimit, clientErr := client.GetLocationList()
 				if err != nil {
-					return err
+					return clientErr
 				}
 
 				location := rd.Get("location").(string)
@@ -94,10 +95,10 @@ func resourceServer() *schema.Resource {
 					}
 
 					if !found {
-						return fmt.Errorf("CPU value (%d) is not in the list of valid. Possible values: %v",
+						err = multierror.Append(err, fmt.Errorf("CPU value (%d) is not valid. Possible values: %v",
 							cpu,
 							locationLimit.CPUQuantityOptions,
-						)
+						))
 					}
 				}
 
@@ -114,10 +115,10 @@ func resourceServer() *schema.Resource {
 					}
 
 					if !found {
-						return fmt.Errorf("RAM value (%d) is not in the list of valid. Possible values: %v",
+						err = multierror.Append(err, fmt.Errorf("RAM value (%d) is not valid. Possible values: %v",
 							ram,
 							locationLimit.RAMSizeOptions,
-						)
+						))
 					}
 				}
 
@@ -128,23 +129,29 @@ func resourceServer() *schema.Resource {
 					newBootSize := newRawBootSize.(int)
 
 					if newBootSize < locationLimit.SystemVolumeMin || newBootSize > locationLimit.VolumeMax {
-						return fmt.Errorf("boot volume size should be between %d and %d on location %s. Now it is %d",
+						err = multierror.Append(err, fmt.Errorf(
+							"boot volume size should be between %d and %d on location %s. Now it is %d",
 							locationLimit.SystemVolumeMin,
 							locationLimit.VolumeMax,
 							location,
 							newBootSize,
-						)
+						))
 					}
 					if newBootSize < oldBootSize {
-						return fmt.Errorf("new boot volume size %d should be more than old boot size %d",
-							newBootSize,
-							oldBootSize,
-						)
+						err = multierror.Append(
+							err,
+							fmt.Errorf(
+								"new boot volume size %d should be more than old boot size %d",
+								newBootSize,
+								oldBootSize,
+							))
 					}
 					if newBootSize%1024 != 0 {
-						return fmt.Errorf("new boot volume size must be a multiple of 10Gb (1024Mb). Now it is %d",
+						err = multierror.Append(err, fmt.Errorf(
+							"new boot volume size must be a multiple of 10Gb (1024Mb)."+
+								"Now it is %d",
 							newBootSize,
-						)
+						))
 					}
 				}
 
@@ -157,13 +164,14 @@ func resourceServer() *schema.Resource {
 						newVolumeSize := newVolume["size"].(int)
 
 						if newVolumeSize < locationLimit.AdditionalVolumeMin || newVolumeSize > locationLimit.VolumeMax {
-							return fmt.Errorf("volume size should be between %d and %d in location %s. Now it is %d (index: %d)",
+							err = multierror.Append(err, fmt.Errorf(
+								"volume size should be between %d and %d in location %s. Now it is %d (index: %d)",
 								locationLimit.AdditionalVolumeMin,
 								locationLimit.VolumeMax,
 								location,
 								newVolumeSize,
 								i,
-							)
+							))
 						}
 
 						for _, oldRawVolume := range oldRawVolumes.([]interface{}) {
@@ -174,20 +182,24 @@ func resourceServer() *schema.Resource {
 
 							if newVolumeID == oldVolumeID {
 								oldVolumeSize := oldVolume["size"].(int)
+
 								if newVolumeSize < oldVolumeSize {
-									return fmt.Errorf("new volume size %d (index: %d) less than old volume size %d. You can only increase volume size",
+									err = multierror.Append(err, fmt.Errorf(
+										"new volume size %d (index: %d) less than old volume size %d. "+
+											"You can only increase volume size",
 										newVolumeSize,
 										i,
 										oldVolumeSize,
-									)
+									))
 								}
 							}
 						}
 
 						if newVolumeSize%1024 != 0 {
-							return fmt.Errorf("new volume size must be a multiple of 10Gb (1024Mb). Now it is %d",
+							err = multierror.Append(err, fmt.Errorf("new volume size must be a multiple of 10Gb (1024Mb). "+
+								"Now it is %d",
 								newVolumeSize,
-							)
+							))
 						}
 					}
 				}
@@ -204,18 +216,20 @@ func resourceServer() *schema.Resource {
 						if netType == ssclient.PublicSharedNetwork {
 							bandwidth := newNIC["bandwidth"].(int)
 							if bandwidth < locationLimit.BandwidthMin || bandwidth > locationLimit.BandwidthMax {
-								return fmt.Errorf("shared network connection bandwidth should be between %d and %d in location location %s. Now it is %d",
+								err = multierror.Append(err, fmt.Errorf(
+									"shared network connection bandwidth should be between %d and %d in location location %s. "+
+										"Now it is %d",
 									locationLimit.BandwidthMin,
 									locationLimit.BandwidthMax,
 									location,
 									bandwidth,
-								)
+								))
 							}
 						}
 					}
 				}
 
-				return nil
+				return err
 			},
 		),
 	}
