@@ -4,9 +4,12 @@ import (
 	"context"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"gitlab.itglobal.com/b2c/terraform-provider-serverspace/serverspace/ssclient"
 )
+
+const NETWORK_IS_USING_ERROR_CODE = -19511
 
 func resourceNetwork() *schema.Resource {
 	return &schema.Resource{
@@ -99,10 +102,23 @@ func resourceNetworkDelete(ctx context.Context, d *schema.ResourceData, m interf
 
 	netwrokID := d.Id()
 
-	err := client.DeleteNetwork(netwrokID)
-	if err != nil {
-		return diag.FromErr(err)
-	}
+	diag.FromErr(
+		resource.Retry(d.Timeout(schema.TimeoutDelete), func() *resource.RetryError {
+			err := client.DeleteNetwork(netwrokID)
+			if err == nil {
+				return nil
+			}
+
+			if clientErr, ok := err.(*ssclient.RequestError); ok {
+				errBody := clientErr.Response.Error().(*ssclient.ErrorBodyResponse)
+				if len(errBody.Errors) == 0 && errBody.Errors[0].Code == NETWORK_IS_USING_ERROR_CODE {
+					return resource.RetryableError(err)
+				}
+			}
+
+			return resource.NonRetryableError(err)
+		}),
+	)
 
 	return diags
 }
