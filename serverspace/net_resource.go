@@ -97,12 +97,9 @@ func resourceNetworkRead(ctx context.Context, d *schema.ResourceData, m interfac
 func resourceNetworkDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	client := m.(*ssclient.SSClient)
 
-	// Warning or errors can be collected in a slice type
-	var diags diag.Diagnostics
-
 	netwrokID := d.Id()
 
-	diag.FromErr(
+	return diag.FromErr(
 		resource.Retry(d.Timeout(schema.TimeoutDelete), func() *resource.RetryError {
 			err := client.DeleteNetwork(netwrokID)
 			if err == nil {
@@ -111,14 +108,11 @@ func resourceNetworkDelete(ctx context.Context, d *schema.ResourceData, m interf
 
 			if clientErr, ok := err.(*ssclient.RequestError); ok {
 				errBody := clientErr.Response.Error().(*ssclient.ErrorBodyResponse)
-				if len(errBody.Errors) == 0 && errBody.Errors[0].Code == NETWORK_IS_USING_ERROR_CODE {
+				if len(errBody.Errors) == 1 && errBody.Errors[0].Code == NETWORK_IS_USING_ERROR_CODE {
 					return resource.RetryableError(err)
 				}
 			}
-
 			return resource.NonRetryableError(err)
 		}),
 	)
-
-	return diags
 }
