@@ -208,15 +208,17 @@ func resourceServer() *schema.Resource {
 
 					newNICS := rd.Get("nic").(*schema.Set).List()
 
+					hasPublicNet := false
 					for _, newRawNIC := range newNICS {
 						newNIC := newRawNIC.(map[string]interface{})
 						netType := ssclient.NetworkType(newNIC["network_type"].(string))
 
 						if netType == ssclient.PublicSharedNetwork {
+							hasPublicNet = true
 							bandwidth := newNIC["bandwidth"].(int)
 							if bandwidth < locationLimit.BandwidthMin || bandwidth > locationLimit.BandwidthMax {
 								err = multierror.Append(err, fmt.Errorf(
-									"shared network connection bandwidth should be between %d and %d in location location %s. "+
+									"shared network connection bandwidth should be between %d and %d in location location %s"+
 										"Now it is %d",
 									locationLimit.BandwidthMin,
 									locationLimit.BandwidthMax,
@@ -225,6 +227,12 @@ func resourceServer() *schema.Resource {
 								))
 							}
 						}
+					}
+
+					if !hasPublicNet {
+						err = multierror.Append(err, fmt.Errorf(
+							"you must have at least one connection to the public network",
+						))
 					}
 				}
 

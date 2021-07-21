@@ -35,7 +35,7 @@ var serverSchema = map[string]*schema.Schema{
 	"ram": {
 		Type:         schema.TypeInt,
 		Required:     true,
-		ValidateFunc: validation.IntAtLeast(512),
+		ValidateFunc: validation.IntAtLeast(1),
 	},
 	"boot_volume_size": {
 		Type:         schema.TypeInt,
@@ -48,7 +48,7 @@ var serverSchema = map[string]*schema.Schema{
 	},
 	"volume": {
 		Type:     schema.TypeList,
-		Required: true,
+		Optional: true,
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
 				"id": {
