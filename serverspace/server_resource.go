@@ -326,7 +326,7 @@ func resourceServerUpdate(ctx context.Context, d *schema.ResourceData, m interfa
 		cpu := d.Get("cpu").(int)
 		ram := d.Get("ram").(int)
 
-		if _, err := client.UpdateServer(serverID, cpu, ram); err != nil {
+		if _, err := client.UpdateServerAndWait(serverID, cpu, ram); err != nil {
 			return diag.FromErr(err)
 		}
 	}
