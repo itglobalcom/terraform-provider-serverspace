@@ -20,7 +20,7 @@ type (
 func (c *SSClient) GetVolume(serverID string, volumeID int) (*VolumeEntity, error) {
 	volumeBaseURL := getVolumesBaseURL(serverID)
 	url := fmt.Sprintf("%s/%d", volumeBaseURL, volumeID)
-	resp, err := makeRequest(c.client, url, methodGet, nil, &serverResponseWrap{})
+	resp, err := makeRequest(c.client, url, methodGet, nil, &volumeResponseWrap{})
 	if err != nil {
 		return nil, err
 	}

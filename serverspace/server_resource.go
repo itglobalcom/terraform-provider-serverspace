@@ -480,7 +480,7 @@ func updateVolumes(d *schema.ResourceData, client *ssclient.SSClient, serverID s
 			oldSize := oldVolume["size"].(int)
 			oldName := oldVolume["name"].(string)
 			if newSize != oldSize || newName != oldName {
-				if _, err := client.UpdateVolume(serverID, volumeID, newName, newSize); err != nil {
+				if _, err := client.UpdateVolumeAndWait(serverID, volumeID, newName, newSize); err != nil {
 					return err
 				}
 			}
