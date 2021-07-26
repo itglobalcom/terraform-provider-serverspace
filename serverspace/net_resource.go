@@ -99,20 +99,24 @@ func resourceNetworkDelete(ctx context.Context, d *schema.ResourceData, m interf
 
 	netwrokID := d.Id()
 
-	return diag.FromErr(
-		resource.Retry(d.Timeout(schema.TimeoutDelete), func() *resource.RetryError {
-			err := client.DeleteNetwork(netwrokID)
-			if err == nil {
-				return nil
-			}
+	err := resource.Retry(d.Timeout(schema.TimeoutDelete), func() *resource.RetryError {
+		err := client.DeleteNetwork(netwrokID)
+		if err == nil {
+			return nil
+		}
 
-			if clientErr, ok := err.(*ssclient.RequestError); ok {
-				errBody := clientErr.Response.Error().(*ssclient.ErrorBodyResponse)
-				if len(errBody.Errors) == 1 && errBody.Errors[0].Code == NETWORK_IS_USING_ERROR_CODE {
-					return resource.RetryableError(err)
-				}
+		if clientErr, ok := err.(*ssclient.RequestError); ok {
+			errBody := clientErr.Response.Error().(*ssclient.ErrorBodyResponse)
+			if len(errBody.Errors) == 1 && errBody.Errors[0].Code == NETWORK_IS_USING_ERROR_CODE {
+				return resource.RetryableError(err)
 			}
-			return resource.NonRetryableError(err)
-		}),
-	)
+		}
+		return resource.NonRetryableError(err)
+	})
+
+	if err == nil {
+		return diag.Diagnostics{}
+	}
+
+	return diag.FromErr(err)
 }
