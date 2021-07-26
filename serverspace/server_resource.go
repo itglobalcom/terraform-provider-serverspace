@@ -208,13 +208,11 @@ func resourceServer() *schema.Resource {
 
 					newNICS := rd.Get("nic").(*schema.Set).List()
 
-					hasPublicNet := false
 					for _, newRawNIC := range newNICS {
 						newNIC := newRawNIC.(map[string]interface{})
 						netType := ssclient.NetworkType(newNIC["network_type"].(string))
 
 						if netType == ssclient.PublicSharedNetwork {
-							hasPublicNet = true
 							bandwidth := newNIC["bandwidth"].(int)
 							if bandwidth < locationLimit.BandwidthMin || bandwidth > locationLimit.BandwidthMax {
 								err = multierror.Append(err, fmt.Errorf(
@@ -227,12 +225,6 @@ func resourceServer() *schema.Resource {
 								))
 							}
 						}
-					}
-
-					if !hasPublicNet {
-						err = multierror.Append(err, fmt.Errorf(
-							"you must have at least one connection to the public network",
-						))
 					}
 				}
 
@@ -310,6 +302,13 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 	server, err := client.CreateServerAndWait(name, location, image, cpu, ram, volumes, nics, sshKeyIds)
 	if err != nil {
 		return diag.FromErr(err)
+	}
+
+	// remove an autocreated nic if exist
+	if len(nics) == 0 && len(server.NICS) != 0 {
+		if err := client.DeleteNIC(server.ID, server.NICS[0].ID); err != nil {
+			return diag.FromErr(err)
+		}
 	}
 
 	d.SetId(server.ID)

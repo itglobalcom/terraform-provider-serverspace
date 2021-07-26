@@ -77,8 +77,7 @@ var serverSchema = map[string]*schema.Schema{
 	},
 	"nic": {
 		Type:     schema.TypeSet,
-		Required: true,
-		MinItems: 1,
+		Optional: true,
 		MaxItems: 5,
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
