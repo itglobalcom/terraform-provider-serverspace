@@ -21,7 +21,6 @@ var networkSchema = map[string]*schema.Schema{
 	"description": {
 		Type:     schema.TypeString,
 		Required: true,
-		ForceNew: true,
 	},
 	"network_prefix": {
 		Type:     schema.TypeString,
