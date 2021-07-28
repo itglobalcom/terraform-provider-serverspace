@@ -38,9 +38,8 @@ var serverSchema = map[string]*schema.Schema{
 		ValidateFunc: validation.IntAtLeast(1),
 	},
 	"boot_volume_size": {
-		Type:         schema.TypeInt,
-		Required:     true,
-		ValidateFunc: validation.IntAtLeast(10240),
+		Type:     schema.TypeInt,
+		Required: true,
 	},
 	"boot_volume_id": {
 		Type:     schema.TypeInt,
