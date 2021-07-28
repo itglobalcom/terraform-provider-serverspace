@@ -338,7 +338,7 @@ func resourceServerUpdate(ctx context.Context, d *schema.ResourceData, m interfa
 		rootVolumeID := d.Get("boot_volume_id").(int)
 		newRootSize := d.Get("boot_volume_size").(int)
 		rootName := "boot"
-		if _, err := client.UpdateVolume(serverID, rootVolumeID, rootName, newRootSize); err != nil {
+		if _, err := client.UpdateVolumeAndWait(serverID, rootVolumeID, rootName, newRootSize); err != nil {
 			return diag.FromErr(err)
 		}
 	}
