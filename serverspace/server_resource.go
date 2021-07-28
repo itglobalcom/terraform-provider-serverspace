@@ -173,32 +173,30 @@ func resourceServer() *schema.Resource {
 							))
 						}
 
-						for _, oldRawVolume := range oldRawVolumes.([]interface{}) {
-							oldVolume := oldRawVolume.(map[string]interface{})
-
-							newVolumeID := newVolume["id"].(int)
-							oldVolumeID := oldVolume["id"].(int)
-
-							if newVolumeID == oldVolumeID {
-								oldVolumeSize := oldVolume["size"].(int)
-
-								if newVolumeSize < oldVolumeSize {
-									err = multierror.Append(err, fmt.Errorf(
-										"new volume size %d (index: %d) less than old volume size %d. "+
-											"You can only increase volume size",
-										newVolumeSize,
-										i,
-										oldVolumeSize,
-									))
-								}
-							}
-						}
-
 						if newVolumeSize%1024 != 0 {
 							err = multierror.Append(err, fmt.Errorf("new volume size must be a multiple of 10Gb (1024Mb). "+
 								"Now it is %d",
 								newVolumeSize,
 							))
+						}
+
+						// However, we use list for volumes and we can check volume by position
+						// https://github.com/hashicorp/terraform-plugin-sdk/issues/783
+						// New size must be great then old
+						oldRawVolumes := oldRawVolumes.([]interface{})
+						if i <= len(oldRawVolumes)-1 {
+							oldVolume := oldRawVolumes[i].(map[string]interface{})
+							oldVolumeSize := oldVolume["size"].(int)
+
+							if newVolumeSize < oldVolumeSize {
+								err = multierror.Append(err, fmt.Errorf(
+									"new volume size %d (index: %d) less than old volume size %d. "+
+										"You can only increase volume size",
+									newVolumeSize,
+									i,
+									oldVolumeSize,
+								))
+							}
 						}
 					}
 				}
@@ -391,8 +389,27 @@ func resourceServerRead(ctx context.Context, d *schema.ResourceData, m interface
 		return diag.FromErr(err)
 	}
 
-	volumes := make([]interface{}, len(volumesWithoutRoot))
-	for i, volume := range volumesWithoutRoot {
+	//Aditiona volumes processing
+
+	_, volumeChanges := d.GetChange("volume")
+	rawStateVolumes := volumeChanges.([]interface{})
+
+	stateVolumes := make([]map[string]interface{}, 0)
+	for _, rawStateVolume := range rawStateVolumes {
+		stateVolume := rawStateVolume.(map[string]interface{})
+		if stateVolume["name"] == "boot" {
+			continue
+		}
+		stateVolumes = append(stateVolumes, stateVolume)
+	}
+
+	sortedVolumes, err := sortVolumesByStateOrder(volumesWithoutRoot, stateVolumes)
+	if err != nil {
+		sortedVolumes = volumesWithoutRoot
+	}
+
+	volumes := make([]interface{}, len(sortedVolumes))
+	for i, volume := range sortedVolumes {
 		volumeMap := map[string]interface{}{
 			"id":   volume.ID,
 			"name": volume.Name,
@@ -404,8 +421,11 @@ func resourceServerRead(ctx context.Context, d *schema.ResourceData, m interface
 		return diag.FromErr(err)
 	}
 
+	// NICS processing
+
 	nics := make([]map[string]interface{}, 0)
 	publicIPS := make([]string, 0)
+
 	for _, nic := range server.NICS {
 		var network string
 		var bandwidth int
@@ -463,23 +483,28 @@ func updateVolumes(d *schema.ResourceData, client *ssclient.SSClient, serverID s
 		oldVolumeValues[volumeID] = mappedVolume
 	}
 
-	newVolumeValues := make(map[int]map[string]interface{}, len(newVolumeValueIfaces.([]interface{})))
+	toCheckVolumeValues := make(map[int]map[string]interface{})
+	toCreateVolumeValues := make([]map[string]interface{}, 0)
+
 	for _, volume := range newVolumeValueIfaces.([]interface{}) {
 		mappedVolume := volume.(map[string]interface{})
 		volumeID := mappedVolume["id"].(int)
-		newVolumeValues[volumeID] = mappedVolume
+		if volumeID == 0 {
+			toCreateVolumeValues = append(toCreateVolumeValues, mappedVolume)
+		} else {
+			toCheckVolumeValues[volumeID] = mappedVolume
+		}
 	}
 
-	// ----- VOLUMES -----
 	// check chenged volumes
 	for volumeID, oldVolume := range oldVolumeValues {
-		if newVolume, exist := newVolumeValues[volumeID]; exist {
-			newSize := newVolume["size"].(int)
-			newName := newVolume["name"].(string)
+		if volume, exist := toCheckVolumeValues[volumeID]; exist {
+			size := volume["size"].(int)
+			name := volume["name"].(string)
 			oldSize := oldVolume["size"].(int)
 			oldName := oldVolume["name"].(string)
-			if newSize != oldSize || newName != oldName {
-				if _, err := client.UpdateVolumeAndWait(serverID, volumeID, newName, newSize); err != nil {
+			if size != oldSize || name != oldName {
+				if _, err := client.UpdateVolumeAndWait(serverID, volumeID, name, size); err != nil {
 					return err
 				}
 			}
@@ -492,13 +517,11 @@ func updateVolumes(d *schema.ResourceData, client *ssclient.SSClient, serverID s
 	}
 
 	// try to find new volumes
-	for volumeID, newVolume := range newVolumeValues {
-		if _, exist := oldVolumeValues[volumeID]; !exist {
-			volumeName := newVolume["name"].(string)
-			volumeSize := newVolume["size"].(int)
-			if _, err := client.CreateVolumeAndWait(serverID, volumeName, volumeSize); err != nil {
-				return err
-			}
+	for _, newVolume := range toCreateVolumeValues {
+		volumeName := newVolume["name"].(string)
+		volumeSize := newVolume["size"].(int)
+		if _, err := client.CreateVolumeAndWait(serverID, volumeName, volumeSize); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -517,4 +540,81 @@ func splitRootFromVolumes(volumes []*ssclient.VolumeEntity) ([]*ssclient.VolumeE
 	}
 
 	return volumesWithoutRoot, rootVolume
+}
+
+func sortVolumesByStateOrder(
+	actualVolumes []*ssclient.VolumeEntity,
+	stateVolumes []map[string]interface{},
+) ([]*ssclient.VolumeEntity, error) {
+	newVolumesOrder := make([]*ssclient.VolumeEntity, 0)
+
+	knownIDS := make(map[int]bool)
+	for _, stateVolume := range stateVolumes {
+		stateVolumeID := stateVolume["id"].(int)
+
+		if stateVolumeID != 0 {
+			knownIDS[stateVolumeID] = true
+		}
+	}
+
+	for _, stateVolume := range stateVolumes {
+		stateVolumeID := stateVolume["id"].(int)
+		volumeMustBeNew := stateVolumeID == 0
+
+		if volumeMustBeNew {
+			foundActualValue, updatedActualVolumes, err := findNewCreatedVolume(stateVolume, actualVolumes, knownIDS)
+			if err != nil {
+				return nil, err
+			}
+			newVolumesOrder = append(newVolumesOrder, foundActualValue)
+			actualVolumes = updatedActualVolumes
+
+		} else {
+			foundActualValue, updatedActualVolumes, err := findVolumeByID(stateVolumeID, actualVolumes)
+			if err != nil {
+				return nil, err
+			}
+			newVolumesOrder = append(newVolumesOrder, foundActualValue)
+			actualVolumes = updatedActualVolumes
+		}
+	}
+
+	return newVolumesOrder, nil
+}
+
+func findVolumeByID(
+	volumeID int,
+	actualVolumes []*ssclient.VolumeEntity,
+) (*ssclient.VolumeEntity, []*ssclient.VolumeEntity, error) {
+	for i, actualVolume := range actualVolumes {
+		if volumeID == actualVolume.ID {
+			copiedActualVolume := *actualVolume
+			return &copiedActualVolume, removeVolumeFromSlice(actualVolumes, i), nil
+		}
+	}
+
+	return nil, nil, fmt.Errorf("can't find new volume with id %d", volumeID)
+}
+
+func findNewCreatedVolume(
+	targetStateVolume map[string]interface{},
+	actualVolumes []*ssclient.VolumeEntity,
+	knownIDS map[int]bool,
+) (*ssclient.VolumeEntity, []*ssclient.VolumeEntity, error) {
+	name := targetStateVolume["name"].(string)
+	size := targetStateVolume["size"].(int)
+
+	for i, actualVolume := range actualVolumes {
+		isKnownID := knownIDS[actualVolume.ID]
+		if !isKnownID && name == actualVolume.Name && size == actualVolume.Size {
+			copiedActualVolume := *actualVolume
+			return &copiedActualVolume, removeVolumeFromSlice(actualVolumes, i), nil
+		}
+	}
+
+	return nil, nil, fmt.Errorf("can't find new volume with name '%s' and size %d", name, size)
+}
+
+func removeVolumeFromSlice(volumesList []*ssclient.VolumeEntity, index int) []*ssclient.VolumeEntity {
+	return append(volumesList[:index], volumesList[index+1:]...)
 }
