@@ -248,6 +248,7 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 
 	rawNICS := d.Get("nic").(*schema.Set)
 	nics := make([]*ssclient.NetworkData, rawNICS.Len())
+	hasPublicSharedNIC := false
 
 	for i, rawNIC := range rawNICS.List() {
 		nic := rawNIC.(map[string]interface{})
@@ -257,6 +258,7 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 			nics[i] = &ssclient.NetworkData{
 				Bandwidth: nic["bandwidth"].(int),
 			}
+			hasPublicSharedNIC = true
 		} else {
 			nics[i] = &ssclient.NetworkData{
 				NetworkID: nic["network"].(string),
@@ -303,8 +305,18 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 	}
 
 	// remove an autocreated nic if exist
-	if len(nics) == 0 && len(server.NICS) != 0 {
-		if err := client.DeleteNIC(server.ID, server.NICS[0].ID); err != nil {
+	if !hasPublicSharedNIC {
+		var autocreatedNIC *ssclient.NICEntity
+		for _, nic := range server.NICS {
+			if nic.NetworkType == ssclient.PublicSharedNetwork {
+				autocreatedNIC = nic
+				break
+			}
+		}
+		if autocreatedNIC == nil {
+			return diag.Errorf("can't find public shared connection but it should be")
+		}
+		if err := client.DeleteNIC(server.ID, autocreatedNIC.ID); err != nil {
 			return diag.FromErr(err)
 		}
 	}
