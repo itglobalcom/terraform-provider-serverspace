@@ -61,6 +61,9 @@ func (c *SSClient) waitTaskCompletion(taskID string) (*TaskResponse, error) {
 		}
 		if task.IsCompleted == "Completed" {
 			return task, nil
+		} else if task.IsCompleted == "Failed" {
+			return nil, fmt.Errorf("Task '%s' failed", task.ID)
+
 		} else {
 			log.Default().Printf("[TRACE] Task isn't completed: %#v", task)
 		}
