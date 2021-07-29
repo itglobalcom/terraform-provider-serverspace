@@ -48,6 +48,7 @@ var serverSchema = map[string]*schema.Schema{
 	"volume": {
 		Type:     schema.TypeList,
 		Optional: true,
+		MaxItems: 4,
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
 				"id": {
