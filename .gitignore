@@ -1,6 +1,6 @@
 .DS_Store
-terraform-provider-hashicups
 bin
+.env
 
 # Created by https://www.toptal.com/developers/gitignore/api/go,terraform
 # Edit at https://www.toptal.com/developers/gitignore?templates=go,terraform
