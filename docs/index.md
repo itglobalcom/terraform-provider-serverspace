@@ -12,8 +12,8 @@ The Serverspace provider is used to interact with the resources supported by Ser
 terraform {
   required_providers {
     serverspace = {
-      source = "serverspace/serverspace"
-      version = "~> 1.0"
+      source = "itglobalcom/serverspace"
+      version = "~> 0.2.0"
     }
   }
 }
