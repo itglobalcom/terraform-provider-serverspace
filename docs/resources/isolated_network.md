@@ -50,3 +50,20 @@ resource "serverspace_server" "example_server" {
 - **id** (String) The ID of the network.
 
 
+
+
+## Metadata information
+
+For more details about the list of available locations, use the [s2ctl](https://github.com/itglobalcom/s2ctl) tool.
+
+### Usage of s2ctl
+
+- **locations** Returns a list of locations where server and network creation is available.
+```
+>s2ctl locations
+- am2
+- ds1
+- nj3
+- kz
+```
+

@@ -93,3 +93,33 @@ Read-Only:
 - **id** (Number) The ID of this volume.
 
 
+
+
+## Metadata information
+
+For more details about the list of available locations and images, use the [s2ctl](https://github.com/itglobalcom/s2ctl) tool.
+
+### Usage of s2ctl
+
+- **locations** Returns a list of locations where server and network creation is available.
+```
+>s2ctl locations
+- am2
+- ds1
+- nj3
+- kz
+```
+- **images** Returns a list of available OS images which can be used to create a server.
+```
+>s2ctl images
+- Freebsd-12.2-X64
+- Debian-10.7-X64
+- Windows-Server 2019 Std-X64
+- Oracle-8.3-X64
+- Ubuntu-18.04-X64
+- CentOS-8.2-X64
+- CentOS-7.9-X64
+- Freebsd-13.0-X64
+- Ubuntu-20.04-X64
+- CentOS-8.3-X64
+```
