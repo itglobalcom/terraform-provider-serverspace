@@ -20,6 +20,8 @@ const (
 	methodOptions
 )
 
+const userAgent = "terraform"
+
 func (m methodType) String() string {
 	switch m {
 	case methodGet:
@@ -50,7 +52,10 @@ func makeRequest(
 ) (interface{}, error) {
 	request := client.R().
 		// .SetError(map[string]interface{}{})
-		SetError(&ErrorBodyResponse{})
+		SetError(&ErrorBodyResponse{}).
+		SetHeaders(map[string]string{
+			"User-Agent": userAgent,
+		})
 
 	if res != nil {
 		request = request.SetResult(res)
