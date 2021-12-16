@@ -26,3 +26,24 @@ build_develop:
     expire_in: 24 hours
   rules:
    - if: '$CI_COMMIT_BRANCH =~ /^develop$/'
+
+
+build_release:
+  stage: build
+  image:
+    name: goreleaser/goreleaser:v1.1.0
+    entrypoint: ['']
+  before_script:
+    - apk add gnupg
+    - gpg --import $GPG_SIGN_KEY
+  script:
+    - goreleaser release --rm-dist --skip-announce --skip-publish
+  artifacts:
+    name: "release-files"
+    paths:
+      - ./dist/*.zip
+      - ./dist/*_SHA256SUMS
+      - ./dist/*_SHA256SUMS.sig
+    expire_in: 1 week
+  only:
+    - tags
