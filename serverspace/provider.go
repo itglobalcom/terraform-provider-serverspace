@@ -28,6 +28,7 @@ func Provider() *schema.Provider {
 			"serverspace_isolated_network": resourceNetwork(),
 			"serverspace_ssh":              resourceSSH(),
 			"serverspace_domain":           resourceDomain(),
+			"serverspace_dns_record":       resourceDNSRecord(),
 		},
 		ConfigureContextFunc: providerConfigure,
 	}
