@@ -4,7 +4,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
 
-	"gitlab.itglobal.com/b2c/terraform-provider-serverspace/serverspace"
+	"github.com/itglobalcom/terraform-provider-serverspace/serverspace"
 )
 
 func main() {

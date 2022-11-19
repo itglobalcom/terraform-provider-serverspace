@@ -1,0 +1,28 @@
+name: pipeline
+
+on:
+  push:
+
+jobs:
+  build_develop:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/add_github_pipeline'
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.16
+
+      - name: Build
+        run: make release
+
+      - name: Upload math result for job 1
+        uses: actions/upload-artifact@v3
+
+        with:
+          name: dev
+          path: |
+            ./bin
+          retention-days: 30

@@ -1,4 +1,4 @@
-module gitlab.itglobal.com/b2c/terraform-provider-serverspace
+module github.com/itglobalcom/terraform-provider-serverspace
 
 go 1.16
 

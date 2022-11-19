@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"gitlab.itglobal.com/b2c/terraform-provider-serverspace/serverspace/ssclient"
+	"github.com/itglobalcom/terraform-provider-serverspace/serverspace/ssclient"
 )
 
 func resourceServer() *schema.Resource {
