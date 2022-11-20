@@ -3,6 +3,10 @@ name: pipeline
 on:
   push:
 
+env:
+  GPG_SIGN_KEY: ${{ secrets.GPG_SIGN_KEY }}
+  GPG_FINGERPRINT: ${{ secrets.GPG_FINGERPRINT }}
+
 jobs:
   build_develop:
     runs-on: ubuntu-latest
@@ -30,9 +34,6 @@ jobs:
   build_release:
     runs-on: ubuntu-latest
     if: contains(github.ref, 'refs/tags/')
-    env:
-      GPG_SIGN_KEY: ${{ secrets.GPG_SIGN_KEY }}
-      GPG_FINGERPRINT: ${{ secrets.GPG_FINGERPRINT }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
