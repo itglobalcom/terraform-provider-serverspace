@@ -44,10 +44,10 @@ jobs:
         uses: actions/setup-go@v3
 
       - name: Decode GPG_SIGN_KEY
-        run: echo $GPG_SIGN_KEY | base64 -d > gpg.key
+        run: echo $GPG_SIGN_KEY | base64 -d > ~/gpg.key
 
       - name: Import GPG_SIGN_KEY
-        run: gpg --import gpg.key
+        run: gpg --import ~/gpg.key
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v3
