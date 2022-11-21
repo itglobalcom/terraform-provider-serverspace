@@ -12,8 +12,8 @@ var HOST_MAP = map[string]string{
 	"06": "https://api.serverspace.ru",
 	"07": "https://api.lincore.kz",
 	"08": "https://api.serverspace.us",
-	"09": "https://api.serverspace.com.tr",
-	"0a": "https://api.serverspace.in",
+	"09": "https://api.serverspace.io",
+	"0a": "https://api.serverspace.io",
 }
 
 type SSClient struct {
