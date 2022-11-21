@@ -62,7 +62,7 @@ jobs:
         with:
           name: release-files
           path: |
-            - ./dist/*.zip
-            - ./dist/*_SHA256SUMS
-            - ./dist/*_SHA256SUMS.sig
+            ./dist/*.zip
+            ./dist/*_SHA256SUMS
+            ./dist/*_SHA256SUMS.sig
           retention-days: 7
