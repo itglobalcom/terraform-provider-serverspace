@@ -38,6 +38,11 @@ func resourceNetworkCreate(ctx context.Context, d *schema.ResourceData, m interf
 		return diag.FromErr(err)
 	}
 
+	// tag network
+	if err := client.TagNetwork(network.ID); err != nil {
+		return diag.FromErr(err)
+	}
+
 	d.SetId(network.ID)
 	resourceNetworkRead(ctx, d, m)
 	return diags

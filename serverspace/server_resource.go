@@ -321,6 +321,11 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 		}
 	}
 
+	// tag server
+	if err := client.TagServer(server.ID); err != nil {
+		return diag.FromErr(err)
+	}
+
 	d.SetId(server.ID)
 	resourceServerRead(ctx, d, m)
 	return diags

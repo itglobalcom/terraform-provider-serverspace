@@ -103,6 +103,15 @@ func (c *SSClient) waitNetwork(taskID string) (*NetworkResponse, error) {
 	return c.GetNetwork(task.NetworkID)
 }
 
+func (c *SSClient) TagNetwork(networkID string) error {
+	payload := map[string]interface{}{
+		"value": "terraform",
+	}
+	url := fmt.Sprintf("%s/tags", getNetworkURL(networkID))
+	_, err := makeRequest(c.client, url, methodPost, payload, nil)
+	return err
+}
+
 func getNetworkURL(networkID string) string {
 	return fmt.Sprintf("%s/%s", networkBaseURL, networkID)
 }
