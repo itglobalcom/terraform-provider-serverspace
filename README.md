@@ -21,7 +21,7 @@ go build -o terraform-provider-serverspace
 
 Create directory to make it visible to terraform 
 ```
-~/.terraform.d/plugins/${host_name}/${namespace}/${type}/${version}/${target}
+~/.terraform.d/plugins/${host_name}/${namespace}/serverspace/${version}/${target}
 ```
 
 Copy built provider in the directory
