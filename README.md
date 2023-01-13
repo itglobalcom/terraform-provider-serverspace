@@ -1,35 +1,60 @@
 # Terraform Provider Serverspace
 
-## To use provider from terraform registry just use configuration below in your *.tf file
+## To use terraform provider, first of all:
+1. Create an API key for the project that will work with Terraform.
+2. Create and navigate to the directory which will be used to work with Terraform Provider.
+3. Create and open the provider.tf configuration file.
+4. Insert the provider information in the file, where <api key> is your API key, and save the changes
+
+## To use provider from terraform registry
+1. Use template of configuration file:
 ```
 terraform {
-    required_providers {
-        serverspace = {
-            source = "itglobalcom/serverspace"
-            version = "~> 0.2.2"
-        }
+  required_providers {
+    serverspace = {
+      source = "itglobalcom/serverspace"
+      version = "0.2.2"
     }
+  }
+}
+
+variable "s2_token" {
+  type = string
+  default = "<api key>"
+}
+
+provider "serverspace" {
+  key = var.s2_token
 }
 ```
 
 ## To use local provider
+1. Download source code of provider:
+```
+git clone https://github.com/itglobalcom/terraform-provider-serverspace.git
+```
 
-Run the following command to build the provider
+2. Open the provider's directory:
+```
+cd terraform-provider-serverspace
+```
+
+3. Run the following command to build the provider
 ```
 go build -o terraform-provider-serverspace
 ```
 
-Create directory to make it visible to terraform 
+4. Create directory to make it visible to terraform 
 ```
-~/.terraform.d/plugins/${host_name}/${namespace}/serverspace/${version}/${target}
-```
-
-Copy built provider in the directory
-```
-cp terraform-provider-serverspace ~/.terraform.d/plugins/${host_name}/${namespace}/${type}/${version}/${target}
+~/.terraform.d/plugins/{host_name}/{namespace}/serverspace/{version}/{target}
 ```
 
-Add provider configuration in your *.tf file
+5. Copy built provider in the directory
+```
+cp terraform-provider-serverspace ~/.terraform.d/plugins/{host_name}/{namespace}/serverspace/{version}/{target}
+```
+
+6. Use template of configuration file:
 ```
 terraform {
 	required_providers {
@@ -38,6 +63,15 @@ terraform {
 			version = "{version}"
 		}
 	}
+}
+
+variable "s2_token" {
+  type = string
+  default = "<api key>"
+}
+
+provider "serverspace" {
+  key = var.s2_token
 }
 ```
 
