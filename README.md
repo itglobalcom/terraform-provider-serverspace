@@ -57,12 +57,12 @@ cp terraform-provider-serverspace ~/.terraform.d/plugins/{host_name}/{namespace}
 6. Use template of configuration file:
 ```
 terraform {
-	required_providers {
-		serverspace = {
-			source = "{host_name}/{namespace}/{type}"
-			version = "{version}"
-		}
-	}
+  required_providers {
+    serverspace = {
+      source = "{host_name}/{namespace}/{type}"
+      version = "{version}"
+    }
+  }
 }
 
 variable "s2_token" {
