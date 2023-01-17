@@ -4,7 +4,7 @@
 1. Create an API key for the project that will work with Terraform.
 2. Create and navigate to the directory which will be used to work with Terraform Provider.
 3. Create and open the provider.tf configuration file.
-4. Insert the provider information in the file, where <api key> is your API key, and save the changes
+4. Insert the provider information in the file, where <api key> is your API key, and save the changes.
 
 ## To use provider from terraform registry
 1. Use template of configuration file:
@@ -46,7 +46,7 @@ go build -o terraform-provider-serverspace
 
 4. Create directory to make it visible to terraform 
 ```
-~/.terraform.d/plugins/{host_name}/{namespace}/serverspace/{version}/{target}
+mkdir ~/.terraform.d/plugins/{host_name}/{namespace}/serverspace/{version}/{target}
 ```
 
 5. Copy built provider in the directory
