@@ -13,7 +13,7 @@ terraform {
   required_providers {
     serverspace = {
       source = "itglobalcom/serverspace"
-      version = "0.2.2"
+      version = "0.2.3"
     }
   }
 }
@@ -46,12 +46,12 @@ go build -o terraform-provider-serverspace
 
 4. Create directory to make it visible to terraform 
 ```
-mkdir ~/.terraform.d/plugins/{host_name}/{namespace}/serverspace/{version}/{target}
+mkdir ~/.terraform.d/plugins/serverspace.local/local/serverspace/0.2.3/linux_amd64
 ```
 
 5. Copy built provider in the directory
 ```
-cp terraform-provider-serverspace ~/.terraform.d/plugins/{host_name}/{namespace}/serverspace/{version}/{target}
+cp terraform-provider-serverspace ~/.terraform.d/plugins/serverspace.local/local/serverspace/0.2.3/linux_amd64
 ```
 
 6. Use template of configuration file:
@@ -59,8 +59,8 @@ cp terraform-provider-serverspace ~/.terraform.d/plugins/{host_name}/{namespace}
 terraform {
   required_providers {
     serverspace = {
-      source = "{host_name}/{namespace}/{type}"
-      version = "{version}"
+      source = "serverspace.local/local/serverspace"
+      version = "0.2.3"
     }
   }
 }
