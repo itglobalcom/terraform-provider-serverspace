@@ -46,7 +46,7 @@ go build -o terraform-provider-serverspace
 
 4. Create directory to make it visible to terraform 
 ```
-mkdir ~/.terraform.d/plugins/serverspace.local/local/serverspace/0.2.3/linux_amd64
+mkdir -p ~/.terraform.d/plugins/serverspace.local/local/serverspace/0.2.3/linux_amd64
 ```
 
 5. Copy built provider in the directory
