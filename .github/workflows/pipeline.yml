@@ -1,0 +1,66 @@
+name: pipeline
+
+on: [push, pull_request]
+
+env:
+  GPG_SIGN_KEY: ${{ secrets.GPG_SIGN_KEY }}
+  GPG_FINGERPRINT: ${{ secrets.GPG_FINGERPRINT }}
+
+jobs:
+  build_develop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.16
+
+      - name: Build
+        run: make release
+
+      - name: Upload math result for job 1
+        uses: actions/upload-artifact@v3
+
+        with:
+          name: dev
+          path: |
+            ./bin
+          retention-days: 1
+
+  build_release:
+    runs-on: ubuntu-latest
+    if: contains(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+
+      - name: Decode GPG_SIGN_KEY
+        run: echo $GPG_SIGN_KEY | base64 -d > ~/gpg.key
+
+      - name: Import GPG_SIGN_KEY
+        run: gpg --import ~/gpg.key
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v3
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --rm-dist --skip-announce --skip-publish
+
+      - name: Upload math result for job 1
+        uses: actions/upload-artifact@v3
+
+        with:
+          name: release-files
+          path: |
+            ./dist/*.zip
+            ./dist/*_SHA256SUMS
+            ./dist/*_SHA256SUMS.sig
+          retention-days: 7
