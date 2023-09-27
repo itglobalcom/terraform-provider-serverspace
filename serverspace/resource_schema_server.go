@@ -3,7 +3,7 @@ package serverspace
 import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
-	"gitlab.itglobal.com/b2c/terraform-provider-serverspace/serverspace/ssclient"
+	"github.com/itglobalcom/goss"
 )
 
 var serverSchema = map[string]*schema.Schema{
@@ -93,8 +93,8 @@ var serverSchema = map[string]*schema.Schema{
 					Type:     schema.TypeString,
 					Required: true,
 					ValidateFunc: validation.StringInSlice([]string{
-						string(ssclient.PublicSharedNetwork),
-						string(ssclient.IsolatedNetwork),
+						string(goss.PublicSharedNetwork),
+						string(goss.IsolatedNetwork),
 					}, false),
 				},
 				"bandwidth": {

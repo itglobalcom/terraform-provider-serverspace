@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"gitlab.itglobal.com/b2c/terraform-provider-serverspace/serverspace/ssclient"
+	"github.com/itglobalcom/goss"
 )
 
-func updateNICS(d *schema.ResourceData, client *ssclient.SSClient, serverID string) error {
+func updateNICS(d *schema.ResourceData, client *goss.SSClient, serverID string) error {
 	// Preparing network data
 	oldNICSValueIfaces, newNICSValueIfaces := d.GetChange("nic")
 
@@ -31,9 +31,9 @@ func updateNICS(d *schema.ResourceData, client *ssclient.SSClient, serverID stri
 	privateOldNICS := make([]map[string]interface{}, 0)
 
 	for _, nic := range oldNICS {
-		nicNetworkType := ssclient.NetworkType(nic["network_type"].(string))
+		nicNetworkType := goss.NetworkType(nic["network_type"].(string))
 
-		if nicNetworkType == ssclient.PublicSharedNetwork {
+		if nicNetworkType == goss.PublicSharedNetwork {
 			publicOldNICS = append(publicOldNICS, nic)
 		} else {
 			privateOldNICS = append(privateOldNICS, nic)
@@ -44,9 +44,9 @@ func updateNICS(d *schema.ResourceData, client *ssclient.SSClient, serverID stri
 	privateNewNICS := make([]map[string]interface{}, 0)
 
 	for _, nic := range newNICS {
-		nicNetworkType := ssclient.NetworkType(nic["network_type"].(string))
+		nicNetworkType := goss.NetworkType(nic["network_type"].(string))
 
-		if nicNetworkType == ssclient.PublicSharedNetwork {
+		if nicNetworkType == goss.PublicSharedNetwork {
 			publicNewNICS = append(publicNewNICS, nic)
 		} else {
 			privateNewNICS = append(privateNewNICS, nic)
@@ -61,7 +61,7 @@ func updateNICS(d *schema.ResourceData, client *ssclient.SSClient, serverID stri
 }
 
 func updatePublicNICS(
-	client *ssclient.SSClient,
+	client *goss.SSClient,
 	serverID string,
 	oldNICS, newNICS []map[string]interface{},
 ) error {
@@ -103,7 +103,7 @@ func updatePublicNICS(
 }
 
 func updatePrivateNICS(
-	client *ssclient.SSClient,
+	client *goss.SSClient,
 	serverID string,
 	oldNICS, newNICS []map[string]interface{},
 ) error {

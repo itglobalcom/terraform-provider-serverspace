@@ -7,7 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"gitlab.itglobal.com/b2c/terraform-provider-serverspace/serverspace/ssclient"
+	"github.com/itglobalcom/goss"
 )
 
 func resourceSSH() *schema.Resource {
@@ -20,7 +20,7 @@ func resourceSSH() *schema.Resource {
 }
 
 func resourceSSHCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*ssclient.SSClient)
+	client := m.(*goss.SSClient)
 
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
@@ -41,19 +41,20 @@ func resourceSSHRead(ctx context.Context, d *schema.ResourceData, m interface{})
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 
-	client := m.(*ssclient.SSClient)
+	client := m.(*goss.SSClient)
 	sshID, _ := strconv.Atoi(d.Id())
 
-	sshKey, err := client.GetSSHKey(sshID)
+	resp, err := client.GetSSHKey(sshID)
 	if err != nil {
 		return diag.FromErr(err)
 	}
+	sshKey := SSHKeyToMap(resp)
 
-	if err := d.Set("name", sshKey.Name); err != nil {
+	if err := d.Set("name", sshKey["name"]); err != nil {
 		return diag.FromErr(err)
 	}
 
-	if err := d.Set("public_key", makeNormalSSHKey(sshKey.PublicKey)); err != nil {
+	if err := d.Set("public_key", sshKey["public_key"]); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -61,8 +62,17 @@ func resourceSSHRead(ctx context.Context, d *schema.ResourceData, m interface{})
 	return diags
 }
 
+func SSHKeyToMap(network *goss.SSHResponse) map[string]interface{} {
+	networkMap := map[string]interface{}{
+		"id":         network.ID,
+		"name":       network.Name,
+		"public_key": network.PublicKey,
+	}
+	return networkMap
+}
+
 func resourceSSHDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*ssclient.SSClient)
+	client := m.(*goss.SSClient)
 
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
