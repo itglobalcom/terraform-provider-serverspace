@@ -27,9 +27,5 @@ func SSHKeyDiffSuppress(_, old, new string, _ *schema.ResourceData) bool {
 	oldKey := makeNormalSSHKey(old)
 	newKey := makeNormalSSHKey(new)
 
-	if oldKey == newKey {
-		return true
-	}
-
-	return false
+	return oldKey == newKey
 }

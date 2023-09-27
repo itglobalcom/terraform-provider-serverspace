@@ -5,7 +5,7 @@ bin
 # Created by https://www.toptal.com/developers/gitignore/api/go,terraform
 # Edit at https://www.toptal.com/developers/gitignore?templates=go,terraform
 
-.idea
+.idea 
 
 ### Go ###
 # Binaries for programs and plugins
@@ -64,3 +64,5 @@ override.tf.json
 .terraformrc
 terraform.rc
 terraform
+
+.vscode

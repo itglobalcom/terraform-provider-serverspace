@@ -78,6 +78,20 @@ resource "serverspace_server" "vm1" {
   }
 }
 
+resource "serverspace_domain" "test_domain" {
+  name = "testdomain.com."
+  migrate_records = false
+}
+
+
+resource "serverspace_domain_record" "test_record" {
+    domain = serverspace_domain.test_domain.name
+    name = "CNAME.testdomain.com."
+    type = "CNAME"
+    canonical_name = "canonical.testdomain.com."
+    ttl = "1d"
+}
+
 
 output "my_net" {
   value = serverspace_isolated_network.my_net

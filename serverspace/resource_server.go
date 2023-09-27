@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"gitlab.itglobal.com/b2c/terraform-provider-serverspace/serverspace/ssclient"
+	"github.com/itglobalcom/goss"
 )
 
 func resourceServer() *schema.Resource {
@@ -23,8 +23,8 @@ func resourceServer() *schema.Resource {
 				nics := value.(*schema.Set).List()
 				for _, nic := range nics {
 					mappedNIC := nic.(map[string]interface{})
-					netType := ssclient.NetworkType(mappedNIC["network_type"].(string))
-					if netType == ssclient.PublicSharedNetwork {
+					netType := goss.NetworkType(mappedNIC["network_type"].(string))
+					if netType == goss.PublicSharedNetwork {
 						if mappedNIC["bandwidth"].(int) == 0 {
 							return fmt.Errorf("bandwidth for PublicShared interface shuold be more than 0")
 						}
@@ -45,7 +45,7 @@ func resourceServer() *schema.Resource {
 				return nil
 			}),
 			func(c context.Context, rd *schema.ResourceDiff, rawClient interface{}) error {
-				client := rawClient.(*ssclient.SSClient)
+				client := rawClient.(*goss.SSClient)
 
 				serverID := rd.Id()
 				var err error
@@ -56,7 +56,7 @@ func resourceServer() *schema.Resource {
 						return clientErr
 					}
 					if len(snapshots) != 0 {
-						err = multierror.Append(err, fmt.Errorf("You can't change networks when have snapshots"))
+						err = multierror.Append(err, fmt.Errorf("you can't change networks when have snapshots"))
 					}
 				}
 
@@ -67,7 +67,7 @@ func resourceServer() *schema.Resource {
 				}
 
 				location := rd.Get("location").(string)
-				var locationLimit *ssclient.LocationEntity
+				var locationLimit *goss.LocationEntity
 
 				for _, loc := range locationsLimit {
 					if loc.ID == location {
@@ -208,9 +208,9 @@ func resourceServer() *schema.Resource {
 
 					for _, newRawNIC := range newNICS {
 						newNIC := newRawNIC.(map[string]interface{})
-						netType := ssclient.NetworkType(newNIC["network_type"].(string))
+						netType := goss.NetworkType(newNIC["network_type"].(string))
 
-						if netType == ssclient.PublicSharedNetwork {
+						if netType == goss.PublicSharedNetwork {
 							bandwidth := newNIC["bandwidth"].(int)
 							if bandwidth < locationLimit.BandwidthMin || bandwidth > locationLimit.BandwidthMax {
 								err = multierror.Append(err, fmt.Errorf(
@@ -233,7 +233,7 @@ func resourceServer() *schema.Resource {
 }
 
 func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*ssclient.SSClient)
+	client := m.(*goss.SSClient)
 	var diags diag.Diagnostics
 
 	// ----- One value params -----
@@ -247,20 +247,18 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 	// ----- NICS -----
 
 	rawNICS := d.Get("nic").(*schema.Set)
-	nics := make([]*ssclient.NetworkData, rawNICS.Len())
-	hasPublicSharedNIC := false
+	nics := make([]*goss.NetworkData, rawNICS.Len())
 
 	for i, rawNIC := range rawNICS.List() {
 		nic := rawNIC.(map[string]interface{})
 
-		netType := ssclient.NetworkType(nic["network_type"].(string))
-		if netType == ssclient.PublicSharedNetwork {
-			nics[i] = &ssclient.NetworkData{
+		netType := goss.NetworkType(nic["network_type"].(string))
+		if netType == goss.PublicSharedNetwork {
+			nics[i] = &goss.NetworkData{
 				Bandwidth: nic["bandwidth"].(int),
 			}
-			hasPublicSharedNIC = true
 		} else {
-			nics[i] = &ssclient.NetworkData{
+			nics[i] = &goss.NetworkData{
 				NetworkID: nic["network"].(string),
 			}
 		}
@@ -277,11 +275,11 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 	// ----- Volumes -----
 
 	rawVolumes := d.Get("volume").([]interface{})
-	volumes := make([]*ssclient.VolumeData, len(rawVolumes))
+	volumes := make([]*goss.VolumeData, len(rawVolumes))
 
 	for i, v := range rawVolumes {
 		rawVolume := v.(map[string]interface{})
-		volume := &ssclient.VolumeData{
+		volume := &goss.VolumeData{
 			Name:   rawVolume["name"].(string),
 			SizeMB: rawVolume["size"].(int),
 		}
@@ -291,7 +289,7 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 	// ----- Root Volume -----
 
 	rootVolumeSize := d.Get("boot_volume_size").(int)
-	rootVolume := &ssclient.VolumeData{
+	rootVolume := &goss.VolumeData{
 		Name:   "boot",
 		SizeMB: rootVolumeSize,
 	}
@@ -302,23 +300,6 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 	server, err := client.CreateServerAndWait(name, location, image, cpu, ram, volumes, nics, sshKeyIds)
 	if err != nil {
 		return diag.FromErr(err)
-	}
-
-	// remove an autocreated nic if exist
-	if !hasPublicSharedNIC {
-		var autocreatedNIC *ssclient.NICEntity
-		for _, nic := range server.NICS {
-			if nic.NetworkType == ssclient.PublicSharedNetwork {
-				autocreatedNIC = nic
-				break
-			}
-		}
-		if autocreatedNIC == nil {
-			return diag.Errorf("can't find public shared connection but it should be")
-		}
-		if err := client.DeleteNIC(server.ID, autocreatedNIC.ID); err != nil {
-			return diag.FromErr(err)
-		}
 	}
 
 	// tag server
@@ -332,7 +313,7 @@ func resourceServerCreate(ctx context.Context, d *schema.ResourceData, m interfa
 }
 
 func resourceServerUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*ssclient.SSClient)
+	client := m.(*goss.SSClient)
 
 	serverID := d.Get("id").(string)
 
@@ -370,43 +351,45 @@ func resourceServerUpdate(ctx context.Context, d *schema.ResourceData, m interfa
 }
 
 func resourceServerRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*ssclient.SSClient)
+	client := m.(*goss.SSClient)
 
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 
 	serverID := d.Get("id").(string)
 
-	server, err := client.GetServer(serverID)
+	resp, err := client.GetServer(serverID)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	if err := d.Set("name", server.Name); err != nil {
+	server := ServerToMap(resp)
+
+	if err := d.Set("name", server["name"]); err != nil {
 		return diag.FromErr(err)
 	}
 
-	if err := d.Set("location", server.LocationID); err != nil {
+	if err := d.Set("location", server["location"]); err != nil {
 		return diag.FromErr(err)
 	}
 
-	if err := d.Set("cpu", server.CPU); err != nil {
+	if err := d.Set("cpu", server["cpu"]); err != nil {
 		return diag.FromErr(err)
 	}
 
-	if err := d.Set("ram", server.RAM); err != nil {
+	if err := d.Set("ram", server["ram"]); err != nil {
 		return diag.FromErr(err)
 	}
 
-	volumesWithoutRoot, rootVolume := splitRootFromVolumes(server.Volumes)
-	if err := d.Set("boot_volume_size", rootVolume.Size); err != nil {
+	if err := d.Set("boot_volume_size", server["boot_volume_size"]); err != nil {
 		return diag.FromErr(err)
 	}
-	if err := d.Set("boot_volume_id", rootVolume.ID); err != nil {
+	if err := d.Set("boot_volume_id", server["boot_volume_id"]); err != nil {
 		return diag.FromErr(err)
 	}
 
 	//Aditiona volumes processing
+	volumesWithoutRoot, _ := splitRootFromVolumes(resp.Volumes)
 
 	_, volumeChanges := d.GetChange("volume")
 	rawStateVolumes := volumeChanges.([]interface{})
@@ -438,15 +421,51 @@ func resourceServerRead(ctx context.Context, d *schema.ResourceData, m interface
 		return diag.FromErr(err)
 	}
 
-	// NICS processing
+	d.Set("nic", server["nics"])
+	d.Set("public_ip_addresses", server["public_ip_addresses"])
+	d.Set("ssh_keys", server["ssh_key_ids"])
 
+	d.SetId(serverID)
+
+	return diags
+}
+
+func ServerToMap(server *goss.ServerResponse) map[string]interface{} {
+	serverMap := map[string]interface{}{
+		"id":       server.ID,
+		"name":     server.Name,
+		"location": server.LocationID,
+		"state":    server.State,
+		"cpu":      server.CPU,
+		"ram":      server.RAM,
+		"ssh_keys": server.SSHKeyIDS,
+		"tags":     server.Tags,
+	}
+
+	// Volumes processing
+	volumesWithoutRoot, rootVolume := splitRootFromVolumes(server.Volumes)
+	serverMap["boot_volume_size"] = rootVolume.Size
+	serverMap["boot_volume_id"] = rootVolume.ID
+
+	volumes := make([]interface{}, len(volumesWithoutRoot))
+	for i, volume := range volumesWithoutRoot {
+		volumeMap := map[string]interface{}{
+			"id":   volume.ID,
+			"name": volume.Name,
+			"size": volume.Size,
+		}
+		volumes[i] = volumeMap
+	}
+	serverMap["volumes"] = volumes
+
+	// Nics processing
 	nics := make([]map[string]interface{}, 0)
 	publicIPS := make([]string, 0)
 
 	for _, nic := range server.NICS {
 		var network string
 		var bandwidth int
-		if nic.NetworkType == ssclient.PublicSharedNetwork {
+		if nic.NetworkType == goss.PublicSharedNetwork {
 			network = ""
 			bandwidth = nic.BandwidthMBPS
 			publicIPS = append(publicIPS, nic.IPAddress)
@@ -462,18 +481,14 @@ func resourceServerRead(ctx context.Context, d *schema.ResourceData, m interface
 			"ip_address":   nic.IPAddress,
 		})
 	}
-	d.Set("nic", nics)
-	d.Set("public_ip_addresses", publicIPS)
+	serverMap["nics"] = nics
+	serverMap["public_ip_addresses"] = publicIPS
 
-	d.Set("ssh_keys", server.SSHKeyIDS)
-
-	d.SetId(serverID)
-
-	return diags
+	return serverMap
 }
 
 func resourceServerDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*ssclient.SSClient)
+	client := m.(*goss.SSClient)
 
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
@@ -490,7 +505,7 @@ func resourceServerDelete(ctx context.Context, d *schema.ResourceData, m interfa
 	return diags
 }
 
-func updateVolumes(d *schema.ResourceData, client *ssclient.SSClient, serverID string) error {
+func updateVolumes(d *schema.ResourceData, client *goss.SSClient, serverID string) error {
 	oldVolumeValueIfaces, newVolumeValueIfaces := d.GetChange("volume")
 
 	oldVolumeValues := make(map[int]map[string]interface{}, len(oldVolumeValueIfaces.([]interface{})))
@@ -544,10 +559,10 @@ func updateVolumes(d *schema.ResourceData, client *ssclient.SSClient, serverID s
 	return nil
 }
 
-func splitRootFromVolumes(volumes []*ssclient.VolumeEntity) ([]*ssclient.VolumeEntity, *ssclient.VolumeEntity) {
+func splitRootFromVolumes(volumes []*goss.VolumeEntity) ([]*goss.VolumeEntity, *goss.VolumeEntity) {
 	volumesLen := len(volumes)
-	volumesWithoutRoot := make([]*ssclient.VolumeEntity, 0, volumesLen)
-	var rootVolume *ssclient.VolumeEntity
+	volumesWithoutRoot := make([]*goss.VolumeEntity, 0, volumesLen)
+	var rootVolume *goss.VolumeEntity
 	for _, volume := range volumes {
 		if volume.Name == "boot" {
 			rootVolume = volume
@@ -560,10 +575,10 @@ func splitRootFromVolumes(volumes []*ssclient.VolumeEntity) ([]*ssclient.VolumeE
 }
 
 func sortVolumesByStateOrder(
-	actualVolumes []*ssclient.VolumeEntity,
+	actualVolumes []*goss.VolumeEntity,
 	stateVolumes []map[string]interface{},
-) ([]*ssclient.VolumeEntity, error) {
-	newVolumesOrder := make([]*ssclient.VolumeEntity, 0)
+) ([]*goss.VolumeEntity, error) {
+	newVolumesOrder := make([]*goss.VolumeEntity, 0)
 
 	knownIDS := make(map[int]bool)
 	for _, stateVolume := range stateVolumes {
@@ -601,8 +616,8 @@ func sortVolumesByStateOrder(
 
 func findVolumeByID(
 	volumeID int,
-	actualVolumes []*ssclient.VolumeEntity,
-) (*ssclient.VolumeEntity, []*ssclient.VolumeEntity, error) {
+	actualVolumes []*goss.VolumeEntity,
+) (*goss.VolumeEntity, []*goss.VolumeEntity, error) {
 	for i, actualVolume := range actualVolumes {
 		if volumeID == actualVolume.ID {
 			copiedActualVolume := *actualVolume
@@ -615,9 +630,9 @@ func findVolumeByID(
 
 func findNewCreatedVolume(
 	targetStateVolume map[string]interface{},
-	actualVolumes []*ssclient.VolumeEntity,
+	actualVolumes []*goss.VolumeEntity,
 	knownIDS map[int]bool,
-) (*ssclient.VolumeEntity, []*ssclient.VolumeEntity, error) {
+) (*goss.VolumeEntity, []*goss.VolumeEntity, error) {
 	name := targetStateVolume["name"].(string)
 	size := targetStateVolume["size"].(int)
 
@@ -632,6 +647,6 @@ func findNewCreatedVolume(
 	return nil, nil, fmt.Errorf("can't find new volume with name '%s' and size %d", name, size)
 }
 
-func removeVolumeFromSlice(volumesList []*ssclient.VolumeEntity, index int) []*ssclient.VolumeEntity {
+func removeVolumeFromSlice(volumesList []*goss.VolumeEntity, index int) []*goss.VolumeEntity {
 	return append(volumesList[:index], volumesList[index+1:]...)
 }
