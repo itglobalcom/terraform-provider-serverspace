@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.25.0
-	github.com/itglobalcom/goss v0.1.5
+	github.com/itglobalcom/goss v0.1.8
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 )
 
